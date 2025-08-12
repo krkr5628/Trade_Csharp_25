@@ -13,60 +13,85 @@ namespace WindowsFormsApp1
 {
     public partial class Log : Form
     {
+        private readonly string logDirectory;
+
         public Log()
         {
             InitializeComponent();
-            //
+            // Use a relative path for the log directory
+            logDirectory = Path.Combine(Application.StartupPath, "Log");
             start();
         }
 
         private void start()
         {
-            // 파일이 있는 폴더 경로
-            // ERROR: CRITICAL PORTABILITY ISSUE. The path to the log directory is hardcoded.
-            // This will fail if the application is run on a machine without this exact directory.
-            string folderPath = @"C:\Auto_Trade_Kiwoom\Log";
-
-            // 해당 폴더의 모든 파일을 가져오기
-            string[] files = Directory.GetFiles(folderPath).OrderByDescending(file => file).ToArray();
-
-            if (files.Length == 0)
+            try
             {
-                richTextBox1.Clear();
-                richTextBox1.AppendText("파일이 없습니다.");
-            }
+                // Ensure the log directory exists
+                if (!Directory.Exists(logDirectory))
+                {
+                    Directory.CreateDirectory(logDirectory);
+                }
 
-            // 파일명 출력
-            foreach (string file in files)
+                // Get all files from the log directory, filtering for log files
+                string[] files = Directory.GetFiles(logDirectory, "*_full.txt")
+                                          .OrderByDescending(file => new FileInfo(file).CreationTime)
+                                          .ToArray();
+
+                listBox1.Items.Clear();
+
+                if (files.Length == 0)
+                {
+                    listBox1.Items.Add("표시할 로그 파일이 없습니다.");
+                    listBox1.Enabled = false;
+                    richTextBox1.Clear();
+                    richTextBox1.AppendText("파일이 없습니다.");
+                    return;
+                }
+
+                // Display file names in the list box
+                foreach (string file in files)
+                {
+                    listBox1.Items.Add(Path.GetFileNameWithoutExtension(file).Replace("_full", ""));
+                }
+
+                // Register the event handler
+                listBox1.SelectedIndexChanged += read;
+            }
+            catch (Exception ex)
             {
-                listBox1.Items.Add(Path.GetFileName(file).Replace("_full.txt", ""));
+                MessageBox.Show("로그 폴더를 초기화하는 중 오류 발생: " + ex.Message);
             }
-
-            //
-            listBox1.SelectedIndexChanged += read;
         }
 
         private void read(object sender, EventArgs e)
         {
-            // 파일이 있는 폴더 경로
-            // ERROR: CRITICAL PORTABILITY ISSUE. The path to the log directory is hardcoded.
-            string folderPath = @"C:\Auto_Trade_Kiwoom\Log\";
+            if (listBox1.SelectedItem == null || !listBox1.Enabled)
+            {
+                return;
+            }
+
+            string selectedFile = listBox1.SelectedItem.ToString();
+            // Handle the case where the placeholder text is selected
+            if (selectedFile.Equals("표시할 로그 파일이 없습니다."))
+            {
+                return;
+            }
+
+            string filePath = Path.Combine(logDirectory, selectedFile + "_full.txt");
 
             try
             {
-                // 파일 열기
-                using (StreamReader reader = new StreamReader(folderPath + listBox1.SelectedItem.ToString() + "_full.txt"))
+                richTextBox1.Clear();
+                // Read the file in chunks for better performance with large files
+                using (StreamReader reader = new StreamReader(filePath, Encoding.Default, true))
                 {
-                    // 파일 내용 읽기
-                    // ERROR: Inefficient file reading. `ReadToEnd()` loads the entire file into
-                    // memory at once. This can cause performance issues or an OutOfMemoryException
-                    // if the log files are very large. It would be better to read the file
-                    // line by line or in chunks.
-                    string content = reader.ReadToEnd();
-
-                    // 파일 내용 출력
-                    richTextBox1.Clear();
-                    richTextBox1.AppendText(content);
+                    var buffer = new char[4096];
+                    int charsRead;
+                    while ((charsRead = reader.Read(buffer, 0, buffer.Length)) > 0)
+                    {
+                        richTextBox1.AppendText(new string(buffer, 0, charsRead));
+                    }
                 }
             }
             catch (Exception ex)
