@@ -22,10 +22,17 @@ namespace WindowsFormsApp1
 
         private void start()
         {
-            // 파일이 있는 폴더 경로
-            // ERROR: CRITICAL PORTABILITY ISSUE. The path to the log directory is hardcoded.
-            // This will fail if the application is run on a machine without this exact directory.
-            string folderPath = @"C:\Auto_Trade_Kiwoom\Log";
+            // Define the relative path for the logs
+            string folderPath = "Log";
+
+            // Check if the directory exists
+            if (!Directory.Exists(folderPath))
+            {
+                MessageBox.Show("Log directory not found: " + folderPath);
+                richTextBox1.Clear();
+                richTextBox1.AppendText("Log directory not found.");
+                return;
+            }
 
             // 해당 폴더의 모든 파일을 가져오기
             string[] files = Directory.GetFiles(folderPath).OrderByDescending(file => file).ToArray();
@@ -48,14 +55,16 @@ namespace WindowsFormsApp1
 
         private void read(object sender, EventArgs e)
         {
-            // 파일이 있는 폴더 경로
-            // ERROR: CRITICAL PORTABILITY ISSUE. The path to the log directory is hardcoded.
-            string folderPath = @"C:\Auto_Trade_Kiwoom\Log\";
+            // Define the relative path for the logs
+            string folderPath = "Log";
 
             try
             {
+                // Combine path and filename safely
+                string filePath = Path.Combine(folderPath, listBox1.SelectedItem.ToString() + "_full.txt");
+
                 // 파일 열기
-                using (StreamReader reader = new StreamReader(folderPath + listBox1.SelectedItem.ToString() + "_full.txt"))
+                using (StreamReader reader = new StreamReader(filePath))
                 {
                     // 파일 내용 읽기
                     // ERROR: Inefficient file reading. `ReadToEnd()` loads the entire file into

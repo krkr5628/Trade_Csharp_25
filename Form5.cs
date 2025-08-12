@@ -28,49 +28,63 @@ namespace WindowsFormsApp1
 
         private void read()
         {
-            // 파일이 있는 폴더 경로
-            // ERROR: CRITICAL PORTABILITY ISSUE. The paths to the agreement and update
-            // text files are hardcoded. This will fail if the application is run on a
-            // machine without this exact directory structure.
-            string folderPath = @"C:\Auto_Trade_Kiwoom\Update\Agreement.txt";
-            string folderPath2 = @"C:\Auto_Trade_Kiwoom\Update\Update.txt";
+            // Define the relative path for the update files
+            string folderPath = "Update";
+            string agreementFilePath = Path.Combine(folderPath, "Agreement.txt");
+            string updateFilePath = Path.Combine(folderPath, "Update.txt");
+
+            // Ensure the directory exists
+            Directory.CreateDirectory(folderPath);
 
             try
             {
-                // 파일 열기
-                using (StreamReader reader = new StreamReader(folderPath))
+                if (File.Exists(agreementFilePath))
                 {
-                    // 파일 내용 읽기
-                    string content = reader.ReadToEnd();
+                    // 파일 열기
+                    using (StreamReader reader = new StreamReader(agreementFilePath))
+                    {
+                        // 파일 내용 읽기
+                        string content = reader.ReadToEnd();
 
-                    // 파일 내용 출력
-                    richTextBox1.Clear();
-                    richTextBox1.AppendText(content);
+                        // 파일 내용 출력
+                        richTextBox1.Clear();
+                        richTextBox1.AppendText(content);
+                    }
+                }
+                else
+                {
+                    richTextBox1.Text = "Agreement.txt not found.";
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show("파일 읽기 중 오류 발생: " + ex.Message);
+                MessageBox.Show("Error reading Agreement.txt: " + ex.Message);
             }
 
             try
             {
-                // 파일 열기
-                using (StreamReader reader = new StreamReader(folderPath2))
+                if (File.Exists(updateFilePath))
                 {
-                    // 파일 내용 읽기
-                    string content = reader.ReadToEnd();
+                    // 파일 열기
+                    using (StreamReader reader = new StreamReader(updateFilePath))
+                    {
+                        // 파일 내용 읽기
+                        string content = reader.ReadToEnd();
 
-                    // 파일 내용 출력
-                    richTextBox2.Clear();
-                    richTextBox2.AppendText(content);
+                        // 파일 내용 출력
+                        richTextBox2.Clear();
+                        richTextBox2.AppendText(content);
+                    }
+                }
+                else
+                {
+                    richTextBox2.Text = "Update.txt not found.";
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show("파일 읽기 중 오류 발생: " + ex.Message);
+                MessageBox.Show("Error reading Update.txt: " + ex.Message);
             }
-
         }
 
         /*

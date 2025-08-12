@@ -29,6 +29,8 @@ namespace WindowsFormsApp1
     // maintain, and test. It should be refactored into many smaller, more focused classes.
     public partial class Trade_Auto : Form
     {
+        private Settings _settings;
+
         //-----------------------------------공용 신호----------------------------------------
 
         static public string[] arrCondition = { };
@@ -36,11 +38,8 @@ namespace WindowsFormsApp1
 
         //-----------------------------------인증 관련 신호----------------------------------------
 
-        // ERROR: CRITICAL SECURITY FLAW. A sensitive authentication key is hardcoded directly
-        // into the source code. This should be loaded from a secure configuration file or
-        // environment variable, not stored in plain text in the code.
-        public static string Authentication = "1ab2c3d4e5f6g7h8i9"; //인증코드에 백슬래시 및 쉼표 불가능
-        public static bool Authentication_Check = true; //미인증(false) / 인증(true)
+        // The hardcoded Authentication string has been removed. It is now managed via settings.json.
+        public bool Authentication_Check = true; //미인증(false) / 인증(true)
         private int sample_balance = 500000; //500,000원(미인증 매매 금액 제한)
 
         //Delay
@@ -108,7 +107,7 @@ namespace WindowsFormsApp1
         //설정창 실행
         private void trade_setting(object sender, EventArgs e)
         {
-            if (!utility.load_check)
+            if (_settings == null)
             {
                 MessageBox.Show("초기 세팅 반영중");
                 return;
@@ -127,7 +126,7 @@ namespace WindowsFormsApp1
         //매매내역 확인
         private void Porfoilo_btn_Click(object sender, EventArgs e)
         {
-            if (!utility.load_check)
+            if (_settings == null)
             {
                 MessageBox.Show("초기 세팅 반영중");
                 return;
@@ -152,7 +151,7 @@ namespace WindowsFormsApp1
         //전체로그 확인
         private void Log_btn_Click(object sender, EventArgs e)
         {
-            if (!utility.load_check)
+            if (_settings == null)
             {
                 MessageBox.Show("초기 세팅 반영중");
                 return;
@@ -177,7 +176,7 @@ namespace WindowsFormsApp1
         //업데이트 및 동의사항 확인
         private void Update_agree_btn_Click(object sender, EventArgs e)
         {
-            if (!utility.load_check)
+            if (_settings == null)
             {
                 MessageBox.Show("초기 세팅 반영중");
                 return;
@@ -202,7 +201,7 @@ namespace WindowsFormsApp1
         //종목 조회 실행
         private async void stock_search_btn(object sender, EventArgs e)
         {
-            if (!utility.load_check)
+            if (_settings == null)
             {
                 MessageBox.Show("초기 세팅 반영중");
                 return;
@@ -234,7 +233,7 @@ namespace WindowsFormsApp1
 
         private async void real_time_search_btn(object sender, EventArgs e)
         {
-            if (!utility.load_check)
+            if (_settings == null)
             {
                 MessageBox.Show("초기 세팅 반영중");
                 return;
@@ -288,7 +287,7 @@ namespace WindowsFormsApp1
 
         private void real_time_stop_btn(object sender, EventArgs e)
         {
-            if (!utility.load_check)
+            if (_settings == null)
             {
                 MessageBox.Show("초기 세팅 반영중");
                 return;
@@ -312,7 +311,7 @@ namespace WindowsFormsApp1
         //전체 청산 버튼
         private async void All_clear_btn_Click(object sender, EventArgs e)
         {
-            if (!utility.load_check)
+            if (_settings == null)
             {
                 MessageBox.Show("초기 세팅 반영중");
                 return;
@@ -353,7 +352,7 @@ namespace WindowsFormsApp1
         //수익 종목 청산 버튼
         private async void Profit_clear_btn_Click(object sender, EventArgs e)
         {
-            if (!utility.load_check)
+            if (_settings == null)
             {
                 MessageBox.Show("초기 세팅 반영중");
                 return;
@@ -394,7 +393,7 @@ namespace WindowsFormsApp1
         //손실 종목 청산 버튼
         private async void Loss_clear_btn_Click(object sender, EventArgs e)
         {
-            if (!utility.load_check)
+            if (_settings == null)
             {
                 MessageBox.Show("초기 세팅 반영중");
                 return;
@@ -623,7 +622,7 @@ namespace WindowsFormsApp1
         //telegram_chat
         private void telegram_message(string message)
         {
-            if (!utility.Telegram_Allow) return;
+            if (!_settings.TelegramAllow) return;
             if (telegram_stop) return;
             //
             string time = DateTime.Now.ToString("HH:mm:ss");
@@ -660,7 +659,7 @@ namespace WindowsFormsApp1
         //telegram_send(초당 1개씩 전송)
         private async void telegram_send(string message)
         {
-            string urlString = $"https://api.telegram.org/bot{utility.telegram_token}/sendMessage?chat_id={utility.telegram_user_id}&text={message}";
+            string urlString = $"https://api.telegram.org/bot{_settings.TelegramToken}/sendMessage?chat_id={_settings.TelegramUserId}&text={message}";
 
             bool success = false;
 
@@ -704,13 +703,13 @@ namespace WindowsFormsApp1
         //Telegram 메시지 수신
         private async Task Telegram_Receive()
         {
-            //string apiUrl = $"https://api.telegram.org/bot{utility.telegram_token}/getUpdates";  
+            //string apiUrl = $"https://api.telegram.org/bot{_settings.TelegramToken}/getUpdates";
 
             while (true)
             {
                 try
                 {
-                    string requestUrl = $"https://api.telegram.org/bot{utility.telegram_token}/getUpdates" + (update_id == 0 ? "" : $"?offset={update_id + 1}");
+                    string requestUrl = $"https://api.telegram.org/bot{_settings.TelegramToken}/getUpdates" + (update_id == 0 ? "" : $"?offset={update_id + 1}");
                     WebRequest request = WebRequest.Create(requestUrl);
                     using (WebResponse response = await request.GetResponseAsync())
                     using (Stream stream = response.GetResponseStream())
@@ -741,7 +740,7 @@ namespace WindowsFormsApp1
                                 //
                                 if (current_message_number > update_id && localDateTime >= time_start)
                                 {
-                                    if (!utility.load_check)
+                                    if (_settings == null)
                                     {
                                         telegram_message($"[TELEGRAM] : 초기 세팅 반영중\n");
                                         continue;
@@ -800,91 +799,47 @@ namespace WindowsFormsApp1
         //Process.Kill()에서 비정상 작동할 가능성 높음
         private void Form_FormClosed(object sender, FormClosedEventArgs e)
         {
+            // Save settings one last time on exit to capture the final state
+            if (_settings != null)
+            {
+                _settings.TelegramLastChatUpdateId = update_id;
+                _settings.GridView1_Refresh_Time = UI_UPDATE.Text;
+                SettingsManager.Save(_settings);
+            }
+
             string formattedDate = DateTime.Now.ToString("yyyyMMdd");
 
-            // Paths to save the files
-            // ERROR: CRITICAL PORTABILITY ISSUE. These file paths are hardcoded to an absolute
-            // directory on the C: drive. This application will crash if this exact folder
-            // structure does not exist. Paths should be relative or configurable.
-            string filePath = $@"C:\Auto_Trade_Kiwoom\Log\{formattedDate}_full.txt";
-            string filePath2 = $@"C:\Auto_Trade_Kiwoom\Log_Trade\{formattedDate}_trade.txt";
-            string filePath3 = @"C:\Auto_Trade_Kiwoom\Setting\setting.txt";
+            // Define relative paths for logs
+            string logDir = "Log";
+            string tradeLogDir = "Log_Trade";
+
+            // Ensure the directories exist
+            Directory.CreateDirectory(logDir);
+            Directory.CreateDirectory(tradeLogDir);
+
+            // Create full file paths
+            string filePath = Path.Combine(logDir, $"{formattedDate}_full.txt");
+            string filePath2 = Path.Combine(tradeLogDir, $"{formattedDate}_trade.txt");
 
             // Save log files
             try
             {
-                using (StreamWriter writer = new StreamWriter(filePath, true))
-                {
-                    writer.Write(string.Join("", log_full));
-                }
+                File.AppendAllText(filePath, string.Join("", log_full));
             }
             catch (Exception ex)
             {
-                // ERROR: CRITICAL STABILITY ISSUE. Using MessageBox.Show() in an automated
-                // application for error handling is a major flaw. It will halt all execution
-                // of the program, including any background trading logic, until a user
-                // manually clicks "OK". Errors should be logged to a file or handled gracefully.
-                MessageBox.Show("파일 저장 중 오류 발생1: " + ex.Message);
+                // Non-blocking log write attempt
+                Console.WriteLine("Failed to write full log: " + ex.Message);
             }
 
             try
             {
-                using (StreamWriter writer = new StreamWriter(filePath2, true))
-                {
-                    writer.Write(string.Join("", log_trade));
-                }
+                File.AppendAllText(filePath2, string.Join("", log_trade));
             }
             catch (Exception ex)
             {
-                // ERROR: CRITICAL STABILITY ISSUE. Using MessageBox.Show() will halt the application.
-                MessageBox.Show("파일 저장 중 오류 발생2: " + ex.Message);
-            }
-
-            // Save Telegram Message Last Number
-            try
-            {
-                if (!File.Exists(filePath3))
-                {
-                    MessageBox.Show("세이브 파일이 존재하지 않습니다.");
-                    return;
-                }
-
-                // 파일의 모든 줄을 동기적으로 읽어오기
-                List<string> linesList = new List<string>();
-                using (StreamReader reader = new StreamReader(filePath3))
-                {
-                    string line;
-                    while ((line = reader.ReadLine()) != null)
-                    {
-                        linesList.Add(line);
-                    }
-                }
-                string[] lines = linesList.ToArray();
-
-                // Ensure the file has at least three lines to update
-                if (lines.Length >= 3)
-                {
-                    lines[lines.Length - 3] = "Telegram_Last_Chat_update_id/" + Convert.ToString(update_id);
-                    lines[lines.Length - 2] = "GridView1_Refresh_Time/" + Convert.ToString(UI_UPDATE.Text);
-                    lines[lines.Length - 1] = "Auth/" + Convert.ToString(Authentication);
-
-                    // 파일의 모든 줄을 동기적으로 쓰기
-                    using (StreamWriter writer = new StreamWriter(filePath3, false))
-                    {
-                        foreach (var line in lines)
-                        {
-                            writer.WriteLine(line);
-                        }
-                    }
-                }
-                else
-                {
-                    MessageBox.Show("파일 형식 오류3 : 새로운 세이브 파일 다운로드 요망");
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("파일 저장 중 오류 발생3: " + ex.Message);
+                // Non-blocking log write attempt
+                Console.WriteLine("Failed to write trade log: " + ex.Message);
             }
         }
 
@@ -973,8 +928,8 @@ namespace WindowsFormsApp1
 
             //-------------------초기 동작-------------------
 
-            //기존 세팅 로드
-            utility.setting_load_auto();
+            // REFACTOR: Load settings from the new robust SettingsManager.
+            _settings = SettingsManager.Load();
 
             //메인 시간 동작
             timer1.Start(); //시간 표시 - 1000ms
@@ -1013,7 +968,7 @@ namespace WindowsFormsApp1
                 }
             });
 
-            if (utility.load_check && !isRunned3)
+            if (_settings != null && !isRunned3)
             {
                 isRunned3 = true;
                 /*
@@ -1044,7 +999,7 @@ namespace WindowsFormsApp1
                 initial_allow(false);
 
                 // Telegram 설정이 되어 있다면 Telegram_Receive 호출
-                if (utility.Telegram_Allow)
+                if (_settings.TelegramAllow)
                 {
                     //언더스코어를 사용함 => 반환값을 명시적으로 무시, 컴파일러에서 await 되지 않았다는 경고 무시
                     _ = Telegram_Receive();
@@ -1056,8 +1011,8 @@ namespace WindowsFormsApp1
 
             //운영시간 확인
             DateTime t_now = DateTime.Now;
-            DateTime t_start = DateTime.Parse(utility.market_start_time);
-            DateTime t_end = DateTime.Parse(utility.market_end_time);
+            DateTime t_start = DateTime.Parse(_settings.MarketStartTime);
+            DateTime t_end = DateTime.Parse(_settings.MarketEndTime);
 
             if (initial_process_complete)
             {
@@ -1469,35 +1424,35 @@ namespace WindowsFormsApp1
             string[] ui_range = { "실시간", "100ms", "300ms", "500ms", "700ms", "1000ms" };
             //
             UI_UPDATE.Items.AddRange(ui_range);
-            UI_UPDATE.SelectedItem = utility.GridView1_Refresh_Time;
-            UI_Refresh_interval = utility.GridView1_Refresh_Time;
+            UI_UPDATE.SelectedItem = _settings.GridView1_Refresh_Time;
+            UI_Refresh_interval = _settings.GridView1_Refresh_Time;
 
             //초기 세팅
-            acc_text.Text = utility.setting_account_number;
-            total_money.Text = string.Format("{0:#,##0}", Convert.ToDecimal(utility.initial_balance));
+            acc_text.Text = _settings.AccountNumber;
+            total_money.Text = string.Format("{0:#,##0}", Convert.ToDecimal(_settings.InitialBalance));
             Current_User_money.Text = "0";
-            if (utility.buy_INDEPENDENT)
+            if (_settings.BuyModeINDEPENDENT)
             {
-                maxbuy_acc.Text = string.Concat(Enumerable.Repeat("0/", utility.Fomula_list_buy_text.Split(',').Length)) + utility.maxbuy_acc;
+                maxbuy_acc.Text = string.Concat(Enumerable.Repeat("0/", _settings.BuyFormulaListText.Split(',').Length)) + _settings.MaxBuyCountPerDay;
             }
             else
             {
-                maxbuy_acc.Text = "0/" + utility.maxbuy_acc;
+                maxbuy_acc.Text = "0/" + _settings.MaxBuyCountPerDay;
             }
             User_id.Text = "-";
-            operation_start.Text = utility.market_start_time;
-            operation_stop.Text = utility.market_end_time;
-            search_start.Text = utility.buy_condition_start;
-            search_stop.Text = utility.buy_condition_end;
-            clear_sell.Text = Convert.ToString(utility.clear_sell);
-            clear_sell_time.Text = utility.clear_sell_start;
-            profit.Text = utility.profit_percent_text;
-            loss.Text = utility.loss_percent_text;
-            buy_condition.Text = utility.Fomula_list_buy_text;
-            buy_condtion_method.Text = mode[utility.buy_set1] + "/" + hoo[utility.buy_set2];
-            sell_condtion.Text = utility.Fomula_list_sell_text;
-            sell_condtion_method.Text = mode[utility.sell_set1] + "/" + hoo[utility.sell_set2];
-            sell_condtion_method_after = mode[utility.sell_set1_after] + "/" + hoo2[utility.sell_set2_after];
+            operation_start.Text = _settings.MarketStartTime;
+            operation_stop.Text = _settings.MarketEndTime;
+            search_start.Text = _settings.BuyConditionStart;
+            search_stop.Text = _settings.BuyConditionEnd;
+            clear_sell.Text = Convert.ToString(_settings.UseGlobalClearance);
+            clear_sell_time.Text = _settings.ClearanceStartTime;
+            profit.Text = _settings.ProfitPercentText;
+            loss.Text = _settings.LossPercentText;
+            buy_condition.Text = _settings.BuyFormulaListText;
+            buy_condtion_method.Text = mode[_settings.BuyOrderType1] + "/" + hoo[_settings.BuyOrderType2];
+            sell_condtion.Text = _settings.SellFormulaListText;
+            sell_condtion_method.Text = mode[_settings.SellOrderType1] + "/" + hoo[_settings.SellOrderType2];
+            sell_condtion_method_after = mode[_settings.SellOrderTypeAfterHours1] + "/" + hoo2[_settings.SellOrderTypeAfterHours2];
 
             //초기세팅2
             all_profit.Text = "0";
@@ -1519,11 +1474,11 @@ namespace WindowsFormsApp1
             nasdaq_index.Text = "미수신";
 
             //초기세팅3
-            if (utility.buy_OR)
+            if (_settings.BuyModeOR)
             {
                 trading_mode.Text = "OR_모드";
             }
-            else if (utility.buy_AND)
+            else if (_settings.BuyModeAND)
             {
                 trading_mode.Text = "AND_모드";
             }
@@ -1534,15 +1489,15 @@ namespace WindowsFormsApp1
 
 
             //KIS
-            KIS_RUN.Text = Convert.ToString(utility.KIS_Allow); //사용여부
-            KIS_Independent.Text = Convert.ToString(utility.KIS_Independent);
-            KIS_Account_Number.Text = utility.KIS_Account;
-            KIS_N.Text = utility.KIS_amount; //N등분
+            KIS_RUN.Text = Convert.ToString(_settings.KIS_Allow); //사용여부
+            KIS_Independent.Text = Convert.ToString(_settings.KIS_Independent);
+            KIS_Account_Number.Text = _settings.KIS_Account;
+            KIS_N.Text = _settings.KIS_Amount; //N등분
             KIS_ACCOUNT.Text = "0";//예수금
             KIS_Profit.Text = "0";
 
             //
-            update_id = utility.Telegram_last_chat_update_id;
+            update_id = _settings.TelegramLastChatUpdateId;
 
             //
             if (Authentication_Check)
@@ -1675,7 +1630,7 @@ namespace WindowsFormsApp1
             // "ACCLIST" 또는 "ACCNO" : 구분자 ';', 보유계좌 목록                
             string 계좌목록 = axKHOpenAPI1.GetLoginInfo("ACCLIST").Trim();
             account = 계좌목록.Split(';');
-            if (!account.Contains(utility.setting_account_number))
+            if (!account.Contains(_settings.AccountNumber))
             {
                 WriteLog_System("계좌번호 재설정 요청 및 초기화 설정\n");
                 acc_text.Text = account[0];
@@ -1746,7 +1701,7 @@ namespace WindowsFormsApp1
                 {
                     WriteLog_Stock("기존 보유 종목 없음\n");
                     telegram_message("기존 보유 종목 없음.\n");
-                    max_hoid.Text = utility.max_hold ? $"0/{utility.max_hold_text}" : "0/10";
+                    max_hoid.Text = _settings.MaxHoldingsEnabled ? $"0/{_settings.MaxHoldingsText}" : "0/10";
                     return;
                 }
 
@@ -1773,7 +1728,7 @@ namespace WindowsFormsApp1
                     await Task.Delay(delay1);
                 }
 
-                max_hoid.Text = utility.max_hold ? $"{dtCondStock_hold.Rows.Count}/{utility.max_hold_text}" : $"{dtCondStock_hold.Rows.Count}/10";
+                max_hoid.Text = _settings.MaxHoldingsEnabled ? $"{dtCondStock_hold.Rows.Count}/{_settings.MaxHoldingsText}" : $"{dtCondStock_hold.Rows.Count}/10";
             }
             catch (InvalidOperationException ex)
             {
@@ -1819,13 +1774,13 @@ namespace WindowsFormsApp1
 
             await Task.Delay(delay1);
 
-            if (utility.kospi_commodity || utility.kosdak_commodity)
+            if (_settings.UseKospiFutures || _settings.UseKosdaqFutures)
             {
                 Initial_kor_index();
             }
 
             //외국인 선물 누적
-            if (utility.Foreign && !check)
+            if (_settings.UseForeignFutures && !check)
             {
                 await KOR_FOREIGN_COMMUNICATION();
             }
@@ -1846,7 +1801,7 @@ namespace WindowsFormsApp1
             string nasdaqUrl = "https://query1.finance.yahoo.com/v8/finance/chart/^IXIC"; //COMP
 
             //다우존스
-            if (utility.dow_index)
+            if (_settings.UseDowIndex)
             {
                 double tmp5 = await GetStockIndex(dowUrl, "DOW");
 
@@ -1861,12 +1816,12 @@ namespace WindowsFormsApp1
                     //
                     if (index_skip) WriteLog_System("[DOW30/SKIP] : 미국 전영업일 휴무\n");
 
-                    if (!index_skip && utility.buy_condition_index)
+                    if (!index_skip && _settings.UseIndexIntegrationForBuy)
                     {
-                        if (utility.type3_selection)
+                        if (_settings.Type3_Selection)
                         {
-                            double start = Convert.ToDouble(utility.type3_start);
-                            double end = Convert.ToDouble(utility.type3_end);
+                            double start = Convert.ToDouble(_settings.Type3_Start);
+                            double end = Convert.ToDouble(_settings.Type3_End);
                             //
                             if (tmp5 < start || end < tmp5)
                             {
@@ -1886,12 +1841,12 @@ namespace WindowsFormsApp1
                         }
                     }
 
-                    if (!index_skip && utility.clear_index)
+                    if (!index_skip && _settings.UseIndexIntegrationForClearance)
                     {
-                        if (utility.type3_selection_all)
+                        if (_settings.Type3_Selection_All)
                         {
-                            double start = Convert.ToDouble(utility.type3_start_all);
-                            double end = Convert.ToDouble(utility.type3_end_all);
+                            double start = Convert.ToDouble(_settings.Type3_Start_All);
+                            double end = Convert.ToDouble(_settings.Type3_End_All);
 
                             if (tmp5 < start || end < tmp5)
                             {
@@ -1917,7 +1872,7 @@ namespace WindowsFormsApp1
             await Task.Delay(2245);
 
             //S&P500
-            if (utility.sp_index)
+            if (_settings.UseSP500Index)
             {
                 double tmp5 = await GetStockIndex(sp500Url, "S&P");
 
@@ -1933,12 +1888,12 @@ namespace WindowsFormsApp1
                     //
                     if (index_skip) WriteLog_System("[S&P500/SKIP] : 미국 전영업일 휴무\n");
 
-                    if (!index_skip && utility.buy_condition_index)
+                    if (!index_skip && _settings.UseIndexIntegrationForBuy)
                     {
-                        if (utility.type4_selection)
+                        if (_settings.Type4_Selection)
                         {
-                            double start = Convert.ToDouble(utility.type4_start);
-                            double end = Convert.ToDouble(utility.type4_end);
+                            double start = Convert.ToDouble(_settings.Type4_Start);
+                            double end = Convert.ToDouble(_settings.Type4_End);
                             if (tmp5 < start || end < tmp5)
                             {
                                 lock (index_write)
@@ -1957,12 +1912,12 @@ namespace WindowsFormsApp1
                         }
                     }
 
-                    if (!index_skip && utility.clear_index)
+                    if (!index_skip && _settings.UseIndexIntegrationForClearance)
                     {
-                        if (utility.type4_selection_all)
+                        if (_settings.Type4_Selection_All)
                         {
-                            double start = Convert.ToDouble(utility.type4_start_all);
-                            double end = Convert.ToDouble(utility.type4_end_all);
+                            double start = Convert.ToDouble(_settings.Type4_Start_All);
+                            double end = Convert.ToDouble(_settings.Type4_End_All);
                             if (tmp5 < start || end < tmp5)
                             {
                                 lock (index_write)
@@ -1989,7 +1944,7 @@ namespace WindowsFormsApp1
             await Task.Delay(2174);
 
             //NASDAQ100
-            if (utility.nasdaq_index)
+            if (_settings.UseNasdaqIndex)
             {
                 double tmp5 = await GetStockIndex(nasdaqUrl, "NASDAQ");
 
@@ -2005,12 +1960,12 @@ namespace WindowsFormsApp1
                     //
                     if (index_skip) WriteLog_System("[NASDAQ100/SKIP] : 미국 전영업일 휴무\n");
 
-                    if (!index_skip && utility.buy_condition_index)
+                    if (!index_skip && _settings.UseIndexIntegrationForBuy)
                     {
-                        if (utility.type5_selection)
+                        if (_settings.Type5_Selection)
                         {
-                            double start = Convert.ToDouble(utility.type5_start);
-                            double end = Convert.ToDouble(utility.type5_end);
+                            double start = Convert.ToDouble(_settings.Type5_Start);
+                            double end = Convert.ToDouble(_settings.Type5_End);
                             if (tmp5 < start || end < tmp5)
                             {
                                 lock (index_write)
@@ -2029,12 +1984,12 @@ namespace WindowsFormsApp1
                         }
                     }
 
-                    if (!index_skip && utility.clear_index)
+                    if (!index_skip && _settings.UseIndexIntegrationForClearance)
                     {
-                        if (utility.type5_selection_all)
+                        if (_settings.Type5_Selection_All)
                         {
-                            double start = Convert.ToDouble(utility.type5_start_all);
-                            double end = Convert.ToDouble(utility.type5_end_all);
+                            double start = Convert.ToDouble(_settings.Type5_Start_All);
+                            double end = Convert.ToDouble(_settings.Type5_End_All);
                             if (tmp5 < start || end < tmp5)
                             {
                                 lock (index_write)
@@ -2138,7 +2093,7 @@ namespace WindowsFormsApp1
         //전일 휴무 확인(UTC)
         private void index_stop_skip(long Unixdate, int GMToffset)
         {
-            if (!utility.Foreign_Stop && !utility.Foreign_Skip) return;
+            if (!_settings.StopOnForeignHoliday && !_settings.SkipOnForeignHoliday) return;
 
             if (!Thread.CurrentThread.CurrentCulture.Name.Equals("ko-KR"))
             {
@@ -2168,8 +2123,8 @@ namespace WindowsFormsApp1
 
             if (isHoliday)
             {
-                if (utility.Foreign_Stop) index_stop = true;
-                if (utility.Foreign_Skip) index_skip = true;
+                if (_settings.StopOnForeignHoliday) index_stop = true;
+                if (_settings.SkipOnForeignHoliday) index_skip = true;
                 WriteLog_System("[미국장 전영업일 휴무] : 매수 중단(조건식 탐색은 실행)\n");
                 telegram_message("[미국장 전영업일 휴무] : 매수 중단(조건식 탐색은 실행)\n");
             }
@@ -2273,7 +2228,7 @@ namespace WindowsFormsApp1
         private async void KOR_INDEX()
         {
             // KOSPI 200 FUTURES
-            if (utility.kospi_commodity)
+            if (_settings.UseKospiFutures)
             {
                 try
                 {
@@ -2291,7 +2246,7 @@ namespace WindowsFormsApp1
             await Task.Delay(delay1); // 비동기적으로 대기
 
             // KOSDAQ 150 FUTURES
-            if (utility.kosdak_commodity)
+            if (_settings.UseKosdaqFutures)
             {
                 try
                 {
@@ -2348,12 +2303,12 @@ namespace WindowsFormsApp1
 
                                             double current = Convert.ToDouble(message);
 
-                                            if (utility.buy_condition_index)
+                            if (_settings.UseIndexIntegrationForBuy)
                                             {
-                                                if (utility.type0_selection && !index_buy)
+                                if (_settings.Type0_Selection && !index_buy)
                                                 {
-                                                    double start = Convert.ToDouble(utility.type0_start);
-                                                    double end = Convert.ToDouble(utility.type0_end);
+                                    double start = Convert.ToDouble(_settings.Type0_Start);
+                                    double end = Convert.ToDouble(_settings.Type0_End);
                                                     if (current < start || end < current)
                                                     {
                                                         lock (index_write)
@@ -2369,12 +2324,12 @@ namespace WindowsFormsApp1
                                                 }
                                             }
 
-                                            if (utility.clear_index)
+                            if (_settings.UseIndexIntegrationForClearance)
                                             {
-                                                if (utility.type0_selection_all && !index_clear)
+                                if (_settings.Type0_Selection_All && !index_clear)
                                                 {
-                                                    double start = Convert.ToDouble(utility.type0_start_all);
-                                                    double end = Convert.ToDouble(utility.type0_end_all);
+                                    double start = Convert.ToDouble(_settings.Type0_Start_All);
+                                    double end = Convert.ToDouble(_settings.Type0_End_All);
                                                     if (current < start || end < current)
                                                     {
                                                         lock (index_write)
@@ -2493,7 +2448,7 @@ namespace WindowsFormsApp1
             }
 
             // 계좌 없으면 이탈
-            if (!account.Contains(utility.setting_account_number))
+            if (!account.Contains(_settings.AccountNumber))
             {
                 WriteLog_System("계좌번호 재설정 요청\n");
                 telegram_message("계좌번호 재설정 요청\n");
@@ -2502,10 +2457,10 @@ namespace WindowsFormsApp1
                 return;
             }
 
-            int condition_length = utility.Fomula_list_buy_text.Split(',').Length;
+            int condition_length = _settings.BuyFormulaListText.Split(',').Length;
 
             // 조건식 없으면 이탈
-            if (utility.buy_condition)
+            if (_settings.UseBuyCondition)
             {
                 if (condition_length == 0)
                 {
@@ -2517,7 +2472,7 @@ namespace WindowsFormsApp1
                 }
 
                 // AND 모드에서는 조건식이 2개
-                if (utility.buy_AND && condition_length != 2)
+                if (_settings.BuyModeAND && condition_length != 2)
                 {
                     WriteLog_System("AND 모드 조건식 2개 필요\n");
                     telegram_message("AND 모드 조건식 2개 필요\n");
@@ -2527,7 +2482,7 @@ namespace WindowsFormsApp1
                 }
 
                 // Independent 모드에서는 조건식이 2개
-                if (utility.buy_INDEPENDENT && condition_length != 2)
+                if (_settings.BuyModeINDEPENDENT && condition_length != 2)
                 {
                     WriteLog_System("Independent 모드 조건식 2개 필요\n");
                     telegram_message("Independent 모드 조건식 2개 필요\n");
@@ -2537,10 +2492,10 @@ namespace WindowsFormsApp1
                 }
             }
 
-            int condition_length2 = utility.Fomula_list_sell_text == "9999" ? 0 : 1;
+            int condition_length2 = _settings.SellFormulaListText == "9999" ? 0 : 1;
 
             // 조건식 없으면 이탈
-            if (utility.sell_condition && condition_length2 == 0)
+            if (_settings.UseSellCondition && condition_length2 == 0)
             {
                 WriteLog_System("설정된 매도 조건식 없음\n");
                 telegram_message("설정된 매도 조건식 없음\n");
@@ -2550,7 +2505,7 @@ namespace WindowsFormsApp1
             }
 
             // 자동 설정 여부
-            if (!utility.auto_trade_allow && !skip)
+            if (!_settings.AutoTradeAllow && !skip)
             {
                 WriteLog_System("자동 매매 실행 미설정\n");
                 telegram_message("자동 매매 실행 미설정\n");
@@ -2563,7 +2518,7 @@ namespace WindowsFormsApp1
             }
 
             // 자동 매수 조건식 설정 여부
-            if (utility.buy_condition)
+            if (_settings.UseBuyCondition)
             {
                 if (!index_stop)
                 {
@@ -2585,7 +2540,7 @@ namespace WindowsFormsApp1
             await Task.Delay(delay1);
 
             // 자동 매도 조건식 설정 여부
-            if (utility.sell_condition)
+            if (_settings.UseSellCondition)
             {
                 if (!index_stop)
                 {
@@ -2612,7 +2567,7 @@ namespace WindowsFormsApp1
             Real_time_search_btn.Enabled = false;
 
             // 조건식이 로딩되었는지 확인
-            if (string.IsNullOrEmpty(utility.Fomula_list_sell_text))
+            if (string.IsNullOrEmpty(_settings.SellFormulaListText))
             {
                 WriteLog_System("매도 조건식 선택 요청\n");
                 telegram_message("매도 조건식 선택 요청\n");
@@ -2624,14 +2579,14 @@ namespace WindowsFormsApp1
             }
 
             // 검색된 조건식이 있을 시
-            string[] condition = utility.Fomula_list_sell_text.Split('^');
+            string[] condition = _settings.SellFormulaListText.Split('^');
             var condInfo = conditionInfo.Find(f => f.Index == Convert.ToInt32(condition[0]) && f.Name.Equals(condition[1]));
 
             // 로드된 조건식 목록에 설정된 조건식이 존재하지 않는 경우
             if (condInfo == null)
             {
-                WriteLog_System($"[실시간매도조건식/미존재/{utility.Fomula_list_sell_text}] : HTS 조건식 리스트 미포함\n");
-                telegram_message($"[실시간매도조건식/미존재/{utility.Fomula_list_sell_text}] : HTS 조건식 리스트 미포함\n");
+                WriteLog_System($"[실시간매도조건식/미존재/{_settings.SellFormulaListText}] : HTS 조건식 리스트 미포함\n");
+                telegram_message($"[실시간매도조건식/미존재/{_settings.SellFormulaListText}] : HTS 조건식 리스트 미포함\n");
                 Real_time_stop_btn.Enabled = false;
                 Real_time_search_btn.Enabled = true;
                 return;
@@ -2656,8 +2611,8 @@ namespace WindowsFormsApp1
 
             if (result != 1)
             {
-                WriteLog_System($"[실시간매도조건식/등록실패/{utility.Fomula_list_sell_text}] : 고유번호 및 이름 확인\n");
-                telegram_message($"[실시간매도조건식/등록실패/{utility.Fomula_list_sell_text}] : 고유번호 및 이름 확인\n");
+                WriteLog_System($"[실시간매도조건식/등록실패/{_settings.SellFormulaListText}] : 고유번호 및 이름 확인\n");
+                telegram_message($"[실시간매도조건식/등록실패/{_settings.SellFormulaListText}] : 고유번호 및 이름 확인\n");
             }
 
             await Task.Delay(delay1); // UI 스레드를 블록하지 않고 비동기적으로 대기
@@ -2671,7 +2626,7 @@ namespace WindowsFormsApp1
             Real_time_search_btn.Enabled = false;
 
             // 조건식이 로딩되었는지 확인
-            if (string.IsNullOrEmpty(utility.Fomula_list_buy_text))
+            if (string.IsNullOrEmpty(_settings.BuyFormulaListText))
             {
                 WriteLog_System("조건식 선택 요청\n");
                 telegram_message("조건식 선택 요청\n");
@@ -2682,7 +2637,7 @@ namespace WindowsFormsApp1
                 return;
             }
 
-            foreach (string Fomula in utility.Fomula_list_buy_text.Split(','))
+            foreach (string Fomula in _settings.BuyFormulaListText.Split(','))
             {
                 // 검색된 조건식이 있을 시
                 string[] condition = Fomula.Split('^');
@@ -2739,7 +2694,7 @@ namespace WindowsFormsApp1
             string code = e.strCodeList.Trim();
 
             //매도 조건식일 경우
-            if (utility.Fomula_list_sell_text.Split('^')[1] == e.strConditionName) return;
+            if (_settings.SellFormulaListText.Split('^')[1] == e.strConditionName) return;
 
             if (string.IsNullOrEmpty(code))
             {
@@ -3494,7 +3449,7 @@ namespace WindowsFormsApp1
                                     continue;
                                 }
 
-                                if (current_price < Convert.ToInt32(utility.min_price) || current_price > Convert.ToInt32(utility.max_price))
+                                if (current_price < Convert.ToInt32(_settings.MinStockPrice) || current_price > Convert.ToInt32(_settings.MaxStockPrice))
                                 {
                                     WriteLog_Stock($"[{condition_nameORcode}/편입실패] : {code_name}({code}) 가격 최소 및 최대 범위 이탈\n");
                                     continue;
@@ -3502,13 +3457,13 @@ namespace WindowsFormsApp1
 
                                 bool buy_and_check = false;
 
-                                if (findRows_check.Any() && utility.buy_OR)
+                                if (findRows_check.Any() && _settings.BuyModeOR)
                                 {
                                     WriteLog_Stock($"[신규편입/초기/{condition_nameORcode}] :  {code_name}({code}) OR 모드 중복\n");
                                     continue;
                                 }
 
-                                if (findRows_check.Any() && utility.buy_AND)
+                                if (findRows_check.Any() && _settings.BuyModeAND)
                                 {
                                     WriteLog_Stock($"[신규편입/초기/{condition_nameORcode}] :  {code_name}({code}) AND 모드 중복\n");
                                     buy_and_check = true;
@@ -3576,7 +3531,7 @@ namespace WindowsFormsApp1
                                     Status = "매수중";
                                 }
 
-                                if (utility.buy_AND && !buy_and_check)
+                                if (_settings.BuyModeAND && !buy_and_check)
                                 {
                                     Status = "호출";
                                 }
@@ -3644,12 +3599,12 @@ namespace WindowsFormsApp1
                             string updown = Convert.ToString(axKHOpenAPI1.GetCommData(e.sTrCode, e.sRQName, 0, "등락율"));
                             string trade_amount = Convert.ToString(axKHOpenAPI1.GetCommData(e.sTrCode, e.sRQName, 0, "거래량"));
                             string now_hold2 = "0";
-                            string Status2 = utility.buy_AND ? "호출" : "대기";
+                            string Status2 = _settings.BuyModeAND ? "호출" : "대기";
 
                             //DataRow[] findRows_check2 = dtCondStock.Select($"종목코드 = '{code2}'");
 
                             //최소 및 최대 매수가 확인
-                            if (current_price2 < Convert.ToInt32(utility.min_price) || current_price2 > Convert.ToInt32(utility.max_price))
+                            if (current_price2 < Convert.ToInt32(_settings.MinStockPrice) || current_price2 > Convert.ToInt32(_settings.MaxStockPrice))
                             {
                                 WriteLog_Stock($"[{condition_nameORcode}/편입실패] : {code_name2}({code2}) 가격 최소 및 최대 범위 이탈\n");
                                 return;
@@ -3657,7 +3612,7 @@ namespace WindowsFormsApp1
 
                             //운영시간 확인
                             DateTime t_now2 = DateTime.Now;
-                            DateTime t_end2 = DateTime.Parse(utility.buy_condition_end);
+                            DateTime t_end2 = DateTime.Parse(_settings.BuyConditionEnd);
                             if (t_now2 > t_end2)
                             {
                                 WriteLog_Stock($"[신규편입/초기/{condition_nameORcode}] :  {code_name2}({code2})\n매수 시간 이후 종목은 차트에 포함하지 않습니다.\n");
@@ -3933,7 +3888,7 @@ namespace WindowsFormsApp1
                 if ((status == "매수완료" || status == "TS매수완료") && Convert.ToInt32(inHigh) < Convert.ToInt32(price))
                 {
                     row["편입최고"] = string.Format("{0:#,##0}", Convert.ToInt32(price));
-                    if (status == "TS매수완료" && nativePercent >= double.Parse(utility.profit_ts_text))
+                    if (status == "TS매수완료" && nativePercent >= double.Parse(_settings.TrailingStopProfitText))
                     {
                         row["상태"] = "매수완료";
                     }
@@ -3946,7 +3901,7 @@ namespace WindowsFormsApp1
                         if (!sell_runningCodes.ContainsKey(orderNumber))
                         {
                             sell_runningCodes[orderNumber] = true;
-                            if (utility.profit_ts)
+                            if (_settings.UseTrailingStop)
                             {
                                 if (Convert.ToInt32(inHigh) > Convert.ToInt32(price))
                                 {
@@ -4039,7 +3994,7 @@ namespace WindowsFormsApp1
                 if (e.strType == "I") // 종목 편입
                 {
                     // 매도 조건식일 경우
-                    if (utility.sell_condition && utility.Fomula_list_sell_text.Split('^')[1] == e.strConditionName)
+                    if (_settings.UseSellCondition && _settings.SellFormulaListText.Split('^')[1] == e.strConditionName)
                     {
                         if (findRows1.Any())
                         {
@@ -4080,7 +4035,7 @@ namespace WindowsFormsApp1
                         }
                     }
                     // INDEPENDENT의 경우 조건식이 다르면 편입한다.
-                    else if (utility.buy_INDEPENDENT)
+                    else if (_settings.BuyModeINDEPENDENT)
                     {
                         bool isEntry = false;
                         bool isSingle = false;
@@ -4155,7 +4110,7 @@ namespace WindowsFormsApp1
                     else
                     {
                         var row = findRows1[0];
-                        if (utility.buy_OR && row["편입"].ToString().Equals("이탈") && row["상태"].ToString().Equals("대기"))
+                        if (_settings.BuyModeOR && row["편입"].ToString().Equals("이탈") && row["상태"].ToString().Equals("대기"))
                         {
                             row["편입"] = "편입";
                             row["편입시각"] = DateTime.Now.ToString("HH:mm:ss");
@@ -4166,7 +4121,7 @@ namespace WindowsFormsApp1
                             return;
                         }
 
-                        if (utility.buy_AND)
+                        if (_settings.BuyModeAND)
                         {
                             if (row["편입"].ToString().Equals("이탈") && row["상태"].ToString().Equals("호출"))
                             {
@@ -4215,12 +4170,12 @@ namespace WindowsFormsApp1
                     }
 
                     var row = findRows[0];
-                    if (utility.sell_condition && utility.Fomula_list_sell_text.Split('^')[1] == e.strConditionName)
+                    if (_settings.UseSellCondition && _settings.SellFormulaListText.Split('^')[1] == e.strConditionName)
                     {
                         return;
                     }
 
-                    if (utility.buy_OR && row["편입"].ToString().Equals("편입") && row["상태"].ToString().Equals("대기"))
+                    if (_settings.BuyModeOR && row["편입"].ToString().Equals("편입") && row["상태"].ToString().Equals("대기"))
                     {
                         row["편입"] = "이탈";
                         row["이탈시각"] = DateTime.Now.ToString("HH:mm:ss");
@@ -4233,7 +4188,7 @@ namespace WindowsFormsApp1
                         //
                         gridView1_refresh();
                     }
-                    else if (utility.buy_AND)
+                    else if (_settings.BuyModeAND)
                     {
                         if (row["편입"].ToString().Equals("편입") && row["상태"].ToString().Equals("호출"))
                         {
@@ -4251,7 +4206,7 @@ namespace WindowsFormsApp1
                             gridView1_refresh();
                         }
                     }
-                    else if (utility.buy_INDEPENDENT)
+                    else if (_settings.BuyModeINDEPENDENT)
                     {
                         foreach (var row2 in findRows)
                         {
@@ -4334,8 +4289,8 @@ namespace WindowsFormsApp1
                 foreach (DataRow row in rowsToProcess)
                 {
                     // 자동 시간전 검출 매수 확인
-                    if (utility.before_time_deny &&
-                        TimeSpan.Parse(row.Field<string>("편입시각")).CompareTo(TimeSpan.Parse(utility.buy_condition_start)) < 0)
+                    if (_settings.PreventBuyBeforeStartTime &&
+                        TimeSpan.Parse(row.Field<string>("편입시각")).CompareTo(TimeSpan.Parse(_settings.BuyConditionStart)) < 0)
                     {
                         continue;
                     }
@@ -4368,7 +4323,7 @@ namespace WindowsFormsApp1
         //자동 취소 확인
         private async void order_cancel_check()
         {
-            if (utility.term_for_non_buy)
+            if (_settings.UseUnfilledBuyCancel)
             {
                 CancelOrdersAsync("매수중", "매수");
                 CancelOrdersAsync("매도중", "매도");
@@ -4414,7 +4369,7 @@ namespace WindowsFormsApp1
         //청산 확인
         private async void account_check_sell()
         {
-            if (utility.clear_sell)
+            if (_settings.UseGlobalClearance)
             {
                 try
                 {
@@ -4453,9 +4408,9 @@ namespace WindowsFormsApp1
                     WriteLog_System($"Error in account_check_sell : {ex.Message}\n");
                 }
             }
-            else if (utility.clear_sell_mode)
+            else if (_settings.UseIndividualClearance)
             {
-                if (!utility.clear_sell_profit && !utility.clear_sell_loss)
+                if (!_settings.UseClearanceProfit && !_settings.UseClearanceLoss)
                 {
                     WriteLog_System("청산 모드 선택 요청\n");
                     telegram_message("청산 모드 선택 요청\n");
@@ -4482,14 +4437,14 @@ namespace WindowsFormsApp1
                                 try
                                 {
                                     double percent_edit = double.Parse(row.Field<string>("수익률").Replace("%", ""));
-                                    double profit = double.Parse(utility.clear_sell_profit_text);
-                                    double loss = double.Parse(utility.clear_sell_loss_text);
+                                    double profit = double.Parse(_settings.ClearanceProfitText);
+                                    double loss = double.Parse(_settings.ClearanceLossText);
 
-                                    if (utility.clear_sell_profit && percent_edit >= profit)
+                                    if (_settings.UseClearanceProfit && percent_edit >= profit)
                                     {
                                         await sell_order("Nan", "청산매도/수익", order_num, row.Field<string>("수익률"), row.Field<string>("편입가"), row.Field<string>("종목코드"), row.Field<string>("종목명"), row.Field<string>("보유수량"));
                                     }
-                                    if (utility.clear_sell_loss && percent_edit <= -loss)
+                                    if (_settings.UseClearanceLoss && percent_edit <= -loss)
                                     {
                                         await sell_order("Nan", "청산매도/손실", order_num, row.Field<string>("수익률"), row.Field<string>("편입가"), row.Field<string>("종목코드"), row.Field<string>("종목명"), row.Field<string>("보유수량"));
                                     }
@@ -4525,8 +4480,8 @@ namespace WindowsFormsApp1
 
                 // 매수 시간 확인
                 TimeSpan t_now = TimeSpan.Parse(time);
-                TimeSpan t_start = TimeSpan.Parse(utility.buy_condition_start);
-                TimeSpan t_end = TimeSpan.Parse(utility.buy_condition_end);
+                TimeSpan t_start = TimeSpan.Parse(_settings.BuyConditionStart);
+                TimeSpan t_end = TimeSpan.Parse(_settings.BuyConditionEnd);
                 if (t_now < t_start || t_now > t_end) return "대기";
 
                 // 보유 종목 수 확인
@@ -4536,10 +4491,10 @@ namespace WindowsFormsApp1
                 if (hold >= hold_max) return "대기";
 
                 // 매매 횟수 확인
-                if (utility.buy_INDEPENDENT)
+                if (_settings.BuyModeINDEPENDENT)
                 {
                     string[] trade_status = maxbuy_acc.Text.Split('/');
-                    string[] condition_num = utility.Fomula_list_buy_text.Split(',');
+                    string[] condition_num = _settings.BuyFormulaListText.Split(',');
                     for (int i = 0; i < condition_num.Length; i++)
                     {
                         if (condition_num[i].Split('^')[1].Equals(condition_name))
@@ -4559,14 +4514,14 @@ namespace WindowsFormsApp1
                 }
 
                 // 보유 종목 매수 확인
-                if (utility.hold_deny)
+                if (_settings.PreventBuyIfHolding)
                 {
                     if (dtCondStock_hold.Select($"종목코드 = {code}").Any()) return "대기";
                 }
 
                 // 최소 주문간 간격 750ms
                 TimeSpan t_last = TimeSpan.Parse(last_buy_time);
-                TimeSpan min_interval = utility.term_for_buy ? TimeSpan.FromMilliseconds(int.Parse(utility.term_for_buy_text)) : TimeSpan.FromMilliseconds(delay1);
+                TimeSpan min_interval = _settings.UseBuyInterval ? TimeSpan.FromMilliseconds(int.Parse(_settings.BuyIntervalText)) : TimeSpan.FromMilliseconds(delay1);
                 if (t_now - t_last < min_interval) return "대기";
 
                 last_buy_time = t_now.ToString();
@@ -4625,10 +4580,10 @@ namespace WindowsFormsApp1
                 }
 
                 // 매매 횟수 업데이트
-                if (utility.buy_INDEPENDENT)
+                if (_settings.BuyModeINDEPENDENT)
                 {
                     string[] trade_status = maxbuy_acc.Text.Split('/');
-                    string[] condition_num = utility.Fomula_list_buy_text.Split(',');
+                    string[] condition_num = _settings.BuyFormulaListText.Split(',');
                     for (int i = 0; i < condition_num.Length; i++)
                     {
                         if (condition_num[i].Split('^')[1].Equals(condition_name))
@@ -4649,7 +4604,7 @@ namespace WindowsFormsApp1
 
                 int error = -1;
 
-                error = axKHOpenAPI1.SendOrder(isMarketOrder ? "시장가매수" : "지정가매수", GetScreenNo(), utility.setting_account_number, 1, code, order_acc, isMarketOrder ? 0 : hoga_cal(int.Parse(price.Replace(",", "")), order_method[1] == "현재가" ? 0 : int.Parse(order_method[1].Replace("호가", "")), int.Parse(high.Replace(",", ""))), isMarketOrder ? "03" : "00", "");
+                error = axKHOpenAPI1.SendOrder(isMarketOrder ? "시장가매수" : "지정가매수", GetScreenNo(), _settings.AccountNumber, 1, code, order_acc, isMarketOrder ? 0 : hoga_cal(int.Parse(price.Replace(",", "")), order_method[1] == "현재가" ? 0 : int.Parse(order_method[1].Replace("호가", "")), int.Parse(high.Replace(",", ""))), isMarketOrder ? "03" : "00", "");
 
                 if (error == 0)
                 {
@@ -4698,24 +4653,24 @@ namespace WindowsFormsApp1
                 current_balance = sample_balance;
             }
 
-            int max_buy = Convert.ToInt32(utility.maxbuy);
+            int max_buy = Convert.ToInt32(_settings.MaxBuyAmountPerStock);
             int quantity = 0;
             double order_Amount = 0;
 
-            if (utility.buy_per_percent)
+            if (_settings.BuyPerPercent)
             {
-                int ratio = Convert.ToInt32(utility.buy_per_percent_text);
+                int ratio = Convert.ToInt32(_settings.BuyPerPercentText);
                 double buy_Percent = ratio / 100.0;
                 order_Amount = current_balance * buy_Percent;
             }
-            else if (utility.buy_per_amount)
+            else if (_settings.BuyPerAmount)
             {
-                int max_amount = Convert.ToInt32(utility.buy_per_amount_text);
+                int max_amount = Convert.ToInt32(_settings.BuyPerAmountText);
                 order_Amount = Math.Min(current_balance, max_amount * price);
             }
             else
             {
-                int max_amount = Convert.ToInt32(utility.buy_per_price_text);
+                int max_amount = Convert.ToInt32(_settings.BuyPerPriceText);
                 order_Amount = Math.Min(current_balance, max_amount);
             }
 
@@ -4731,8 +4686,8 @@ namespace WindowsFormsApp1
         private async void sell_check_condition(string code, string price, string percent, string time, string order_num, string Start_price, string Code, string Code_Name, string hold2)
         {
             TimeSpan t_code = TimeSpan.Parse(time);
-            TimeSpan t_start = TimeSpan.Parse(utility.sell_condition_start);
-            TimeSpan t_end = TimeSpan.Parse(utility.sell_condition_end);
+            TimeSpan t_start = TimeSpan.Parse(_settings.SellConditionStart);
+            TimeSpan t_end = TimeSpan.Parse(_settings.SellConditionEnd);
 
             if (t_code.CompareTo(t_start) < 0 || t_code.CompareTo(t_end) > 0)
             {
@@ -4749,10 +4704,10 @@ namespace WindowsFormsApp1
             try
             {
                 // 익절
-                if (utility.profit_percent)
+                if (_settings.UseProfitPercent)
                 {
                     double percent_edit = double.Parse(percent.Replace("%", ""));
-                    double profit = double.Parse(utility.profit_percent_text);
+                    double profit = double.Parse(_settings.ProfitPercentText);
                     if (percent_edit >= profit)
                     {
                         await sell_order(price, "익절매도", order_num, percent, Start_price, Code, Code_Name, hold2);
@@ -4761,9 +4716,9 @@ namespace WindowsFormsApp1
                 }
 
                 // 익절원
-                if (utility.profit_won)
+                if (_settings.UseProfitWon)
                 {
-                    int profit_amount = Convert.ToInt32(utility.profit_won_text);
+                    int profit_amount = Convert.ToInt32(_settings.ProfitWonText);
                     if ((hold * buy_price * double.Parse(percent.Replace("%", "")) / 100) >= profit_amount)
                     {
                         await sell_order(price, "익절원", order_num, percent, Start_price, Code, Code_Name, hold2);
@@ -4772,9 +4727,9 @@ namespace WindowsFormsApp1
                 }
 
                 // 익절TS
-                if (utility.profit_ts)
+                if (_settings.UseTrailingStop)
                 {
-                    if (Math.Abs(down_percent) >= double.Parse(utility.profit_ts_text2))
+                    if (Math.Abs(down_percent) >= double.Parse(_settings.TrailingStopLossText))
                     {
                         await sell_order(price, "익절TS", order_num, percent, Start_price, Code, Code_Name, hold2);
                         return;
@@ -4782,10 +4737,10 @@ namespace WindowsFormsApp1
                 }
 
                 // 손절
-                if (utility.loss_percent)
+                if (_settings.UseLossPercent)
                 {
                     double percent_edit = double.Parse(percent.TrimEnd('%'));
-                    double loss = double.Parse(utility.loss_percent_text);
+                    double loss = double.Parse(_settings.LossPercentText);
                     if (percent_edit <= -loss)
                     {
                         await sell_order(price, "손절매도", order_num, percent, Start_price, Code, Code_Name, hold2);
@@ -4794,9 +4749,9 @@ namespace WindowsFormsApp1
                 }
 
                 // 손절원
-                if (utility.loss_won)
+                if (_settings.UseLossWon)
                 {
-                    int loss_amount = Convert.ToInt32(utility.loss_won_text);
+                    int loss_amount = Convert.ToInt32(_settings.LossWonText);
                     if ((hold * buy_price * double.Parse(percent.Replace("%", "")) / 100) <= -loss_amount)
                     {
                         await sell_order(price, "손절원", order_num, percent, Start_price, Code, Code_Name, hold2);
@@ -4844,13 +4799,13 @@ namespace WindowsFormsApp1
             TimeSpan t_now = TimeSpan.Parse(DateTime.Now.ToString("HH:mm:ss"));
 
             //주문간 간격
-            if (utility.term_for_sell)
+            if (_settings.UseSellInterval)
             {
                 TimeSpan t_last2 = TimeSpan.Parse(last_buy_time);
 
-                if (t_now - t_last2 < TimeSpan.FromMilliseconds(Convert.ToInt32(utility.term_for_sell_text)))
+                if (t_now - t_last2 < TimeSpan.FromMilliseconds(Convert.ToInt32(_settings.SellIntervalText)))
                 {
-                    //WriteLog_Order($"[매도간격] 설정({utility.term_for_sell_text}), 현재({(t_now - t_last2).ToString()})\n");
+                    //WriteLog_Order($"[매도간격] 설정({_settings.SellIntervalText}), 현재({(t_now - t_last2).ToString()})\n");
                     return;
                 }
                 last_buy_time = t_now.ToString();
@@ -4902,19 +4857,19 @@ namespace WindowsFormsApp1
             //시간외종가
             if (market_time == 1)
             {
-                if (sell_message.Equals("청산매도/일반") || sell_message.Equals("청산매도/수익") && !utility.clear_sell_profit_after1)
+                if (sell_message.Equals("청산매도/일반") || sell_message.Equals("청산매도/수익") && !_settings.ClearanceProfitAfterHours1)
                 {
                     return;
                 }
-                else if (sell_message.Equals("청산매도/손실") && !utility.clear_sell_loss_after1)
+                else if (sell_message.Equals("청산매도/손실") && !_settings.ClearanceLossAfterHours1)
                 {
                     return;
                 }
-                else if (sell_message.Equals("익절매도") || sell_message.Equals("익절원") || sell_message.Equals("익절TS") && !utility.profit_after1)
+                else if (sell_message.Equals("익절매도") || sell_message.Equals("익절원") || sell_message.Equals("익절TS") && !_settings.ProfitAfterHours1)
                 {
                     return;
                 }
-                else if (sell_message.Equals(" 손절매도") || sell_message.Equals("손절원") && !utility.loss_after1)
+                else if (sell_message.Equals(" 손절매도") || sell_message.Equals("손절원") && !_settings.LossAfterHours1)
                 {
                     return;
                 }
@@ -4961,19 +4916,19 @@ namespace WindowsFormsApp1
             //시간외단일가
             else if (market_time == 2)
             {
-                if (sell_message.Equals("청산매도/일반") || sell_message.Equals("청산매도/수익") && !utility.clear_sell_profit_after2)
+                if (sell_message.Equals("청산매도/일반") || sell_message.Equals("청산매도/수익") && !_settings.ClearanceProfitAfterHours2)
                 {
                     return;
                 }
-                else if (sell_message.Equals("청산매도/손실") && !utility.clear_sell_loss_after2)
+                else if (sell_message.Equals("청산매도/손실") && !_settings.ClearanceLossAfterHours2)
                 {
                     return;
                 }
-                else if (sell_message.Equals("익절매도") || sell_message.Equals("익절원") || sell_message.Equals("익절TS") && !utility.profit_after2)
+                else if (sell_message.Equals("익절매도") || sell_message.Equals("익절원") || sell_message.Equals("익절TS") && !_settings.ProfitAfterHours2)
                 {
                     return;
                 }
-                else if (sell_message.Equals(" 손절매도") || sell_message.Equals("손절원") && !utility.loss_after2)
+                else if (sell_message.Equals(" 손절매도") || sell_message.Equals("손절원") && !_settings.LossAfterHours2)
                 {
                     return;
                 }
@@ -5488,10 +5443,10 @@ namespace WindowsFormsApp1
                 TimeSpan t_last2 = TimeSpan.Parse(last_buy_time);
 
                 // 주문 간 간격 확인
-                int term_for_sell = utility.term_for_sell ? Convert.ToInt32(utility.term_for_sell_text) : 200;
+                int term_for_sell = _settings.UseSellInterval ? Convert.ToInt32(_settings.SellIntervalText) : 200;
                 if (t_now - t_last2 < TimeSpan.FromMilliseconds(term_for_sell))
                 {
-                    // WriteLog_Order($"[매도간격] 설정({term_for_sell}), 현재({(t_now - t_last2).ToString()})\n");
+                    // WriteLog_Order($"[매도간격] 설정({_settings.SellIntervalText}), 현재({(t_now - t_last2).ToString()})\n");
                     return;
                 }
                 last_buy_time = t_now.ToString();
@@ -5580,10 +5535,10 @@ namespace WindowsFormsApp1
             try
             {
                 //매수 조건식 중단
-                if (utility.buy_condition)
+                if (_settings.UseBuyCondition)
                 {
                     // 검색된 조건식이 없을시
-                    if (string.IsNullOrEmpty(utility.Fomula_list_buy_text))
+                    if (string.IsNullOrEmpty(_settings.BuyFormulaListText))
                     {
                         WriteLog_System("[실시간매수조건/중단실패] : 조건식없음\n");
                         telegram_message("[실시간매수조건/중단실패] : 조건식없음\n");
@@ -5593,7 +5548,7 @@ namespace WindowsFormsApp1
                     else
                     {
                         //검색된 매수 조건식이 있을시
-                        string[] condition = utility.Fomula_list_buy_text.Split(',');
+                        string[] condition = _settings.BuyFormulaListText.Split(',');
                         for (int i = 0; i < condition.Length; i++)
                         {
                             string[] tmp = condition[i].Split('^');
@@ -5608,10 +5563,10 @@ namespace WindowsFormsApp1
                 await Task.Delay(delay1); // 비동기적으로 대기
 
                 //매도 조건식 중단
-                if (utility.sell_condition)
+                if (_settings.UseSellCondition)
                 {
                     // 검색된 조건식이 없을시
-                    if (string.IsNullOrEmpty(utility.Fomula_list_buy_text))
+                    if (string.IsNullOrEmpty(_settings.BuyFormulaListText))
                     {
                         WriteLog_System("[실시간매도조건/중단실패] : 조건식없음\n");
                         telegram_message("[실시간매도조건/중단실패] : 조건식없음\n");
@@ -5621,7 +5576,7 @@ namespace WindowsFormsApp1
                     else
                     {
                         //검색된 매도 조건식이 있을시
-                        string[] condition = utility.Fomula_list_sell_text.Split(',');
+                        string[] condition = _settings.SellFormulaListText.Split(',');
                         for (int i = 0; i < condition.Length; i++)
                         {
                             string[] tmp = condition[i].Split('^');
