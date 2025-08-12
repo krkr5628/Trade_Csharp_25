@@ -53,25 +53,30 @@ namespace WindowsFormsApp1
             dataGridView2.DataSource = Trade_History2;
         }
 
+        // Hardcoded path to the log directory. Consider making this configurable.
+        private const string LogDirectory = @"C:\Auto_Trade_Kiwoom\Log_Trade";
+
         private void start()
         {
-            // 파일이 있는 폴더 경로
-            // ERROR: CRITICAL PORTABILITY ISSUE. The path to the log directory is hardcoded.
-            // This will fail if the application is run on a machine without this exact directory.
-            string folderPath = @"C:\Auto_Trade_Kiwoom\Log_Trade";
+            if (!Directory.Exists(LogDirectory))
+            {
+                MessageBox.Show($"로그 디렉토리를 찾을 수 없습니다: {LogDirectory}");
+                return;
+            }
 
-            // 해당 폴더의 모든 파일을 가져오기
-            string[] files = Directory.GetFiles(folderPath).OrderByDescending(file => file).ToArray();
+            // Get all files from the folder and sort them descending by name
+            string[] files = Directory.GetFiles(LogDirectory).OrderByDescending(file => file).ToArray();
 
             if (files.Length == 0)
             {
-                MessageBox.Show("파일이 없습니다.");
+                MessageBox.Show("거래 로그 파일이 없습니다.");
+                return;
             }
 
-            // 파일명 출력
+            // Display file names in the list box
             foreach (string file in files)
             {
-                listBox1.Items.Add(Path.GetFileName(file).Replace("_trade.txt", ""));
+                listBox1.Items.Add(Path.GetFileNameWithoutExtension(file).Replace("_trade", ""));
             }
 
             //
@@ -80,154 +85,119 @@ namespace WindowsFormsApp1
 
         private void read(object sender, EventArgs e)
         {
-            // 파일이 있는 폴더 경로
-            // ERROR: CRITICAL PORTABILITY ISSUE. The path to the log directory is hardcoded.
-            string folderPath = @"C:\Auto_Trade_Kiwoom\Log_Trade\";
+            if (listBox1.SelectedItem == null) return;
+
+            string filePath = Path.Combine(LogDirectory, $"{listBox1.SelectedItem}_trade.txt");
 
             try
             {
-                // 파일 열기
-                using (StreamReader reader = new StreamReader(folderPath + listBox1.SelectedItem.ToString() + "_trade.txt"))
+                using (StreamReader reader = new StreamReader(filePath))
                 {
                     Trade_History.Clear();
                     Trade_History2.Clear();
                     string line;
 
-                    // ERROR: This loop is highly inefficient for UI updates.
-                    // It re-assigns the DataGridView.DataSource on every single line of the log file.
-                    // For large logs, this will cause extreme flickering and poor performance.
-                    // The data should be loaded into the DataTable first, and then the UI should
-                    // be updated only once after the loop finishes.
+                    // This regex is brittle. If the log format changes, parsing will fail.
+                    string pattern = @"\[(.*?)\]\[Order\] : \[(.*?)/(.*?)/(.*?)\] : (.*?)\((.*?)\) (\d+)개 ([\d,]+)원";
+
                     while ((line = reader.ReadLine()) != null)
                     {
-                        if (line.Contains("정상완료"))
-                        {
-                            // ERROR: Brittle log parsing. This relies on a complex, specific regex pattern.
-                            // If the format of the log message ever changes, this will fail silently and
-                            // the transaction history will not be displayed. It is also vulnerable to
-                            // crashing if a log line is corrupted and a value cannot be converted to a number.
-                            string pattern = @"\[(.*?)\]\[Order\] : \[(.*?)/(.*?)/(.*?)\] : (.*?)\((.*?)\) (\d+)개 ([\d,]+)원";
-                            Match match = Regex.Match(line, pattern);
-                            //
-                            if (match.Success)
-                            {
-                                Trade_History.Rows.Add(
-                                    match.Groups[1].Value, // 11:05:02
-                                    match.Groups[4].Value, // 01
-                                    match.Groups[2].Value.Substring(0, 2), // 매수
-                                    match.Groups[6].Value, // A083450
-                                    match.Groups[5].Value, // GST
-                                    match.Groups[7].Value, // 851
-                                    match.Groups[8].Value.Replace(",", "") // 49,148 -> 49148
-                                );
+                        if (!line.Contains("정상완료")) continue;
 
-                                Trade_History.AcceptChanges();
-                                dataGridView1.DataSource = Trade_History;
+                        Match match = Regex.Match(line, pattern);
+                        if (!match.Success) continue;
 
-                                /*
-                                    dataTable2.Columns.Add("구분", typeof(string));       
-                                    dataTable2.Columns.Add("종목코드", typeof(string));
-                                    dataTable2.Columns.Add("종목명", typeof(string));
-                                    dataTable2.Columns.Add("매수시간", typeof(string));
-                                    dataTable2.Columns.Add("총매수(개)", typeof(string));
-                                    dataTable2.Columns.Add("총매수(원)", typeof(string));
-                                    dataTable2.Columns.Add("매도시간", typeof(string));
-                                    dataTable2.Columns.Add("총매도(개)", typeof(string));
-                                    dataTable2.Columns.Add("총매도(원)", typeof(string));
-                                    dataTable2.Columns.Add("총수익(원)", typeof(string));
-                                    dataTable2.Columns.Add("총수익(%)", typeof(string));
-                                */
-                                //
-                                if (match.Groups[2].Value.Substring(0, 2).Equals("매수"))
-                                {
-                                    DataRow[] findRows = Trade_History2.AsEnumerable().Where(row => row.Field<string>("구분") == match.Groups[4].Value && row.Field<string>("종목코드") == match.Groups[6].Value).ToArray();
+                        // Add raw trade history
+                        Trade_History.Rows.Add(
+                            match.Groups[1].Value, // Time
+                            match.Groups[4].Value, // 구분
+                            match.Groups[2].Value.Substring(0, 2), // 상태 (매수/매도)
+                            match.Groups[6].Value, // 종목코드
+                            match.Groups[5].Value, // 종목명
+                            match.Groups[7].Value, // 거래량
+                            match.Groups[8].Value.Replace(",", "")  // 편입가
+                        );
 
-                                    if (findRows.Any())
-                                    {
-                                        Int64 tmp_cnt = findRows[0]["총매수(개)"].ToString() == "" ? 0 : Convert.ToInt64(findRows[0]["총매수(개)"]);
-                                        Int64 tmp_won = findRows[0]["총매수(원)"].ToString() == "" ? 0 : Convert.ToInt64(findRows[0]["총매수(원)"]);
-                                        Int64 tmp_sell_won = findRows[0]["총매도(원)"].ToString() == "" ? 0 : Convert.ToInt64(findRows[0]["총매도(원)"]);
-
-                                        Int64 tmp = tmp_won + Convert.ToInt64(match.Groups[7].Value) * Convert.ToInt64(match.Groups[8].Value.Replace(",", ""));
-                                        Int64 tmp2 = tmp_sell_won - tmp;
-
-                                        findRows[0]["총매수(개)"] = Convert.ToString(tmp_cnt + Convert.ToInt64(match.Groups[7].Value));
-                                        findRows[0]["총매수(원)"] = Convert.ToString(tmp);
-                                        findRows[0]["총수익(원)"] = Convert.ToString(tmp2);
-                                        findRows[0]["총수익(%)"] = Convert.ToString(Math.Round((double)tmp2 / tmp * 100, 3));
-
-                                        Trade_History2.AcceptChanges();
-                                        dataGridView2.DataSource = Trade_History2;
-                                    }
-                                    else
-                                    {
-                                        Trade_History2.Rows.Add(
-                                            match.Groups[4].Value, // 01
-                                            match.Groups[6].Value, // A083450
-                                            match.Groups[5].Value, // GST
-                                            match.Groups[7].Value, // 851
-                                            Convert.ToString(Convert.ToInt64(match.Groups[7].Value) * Convert.ToInt64(match.Groups[8].Value.Replace(",", ""))),
-                                            "", //매도(개)
-                                            "", //매도(원)
-                                            "", //총수익(원)
-                                            "" //총수익(%)
-                                        );
-
-                                        Trade_History2.AcceptChanges();
-                                        dataGridView2.DataSource = Trade_History2;
-                                    }
-                                }
-                                else
-                                {
-                                    DataRow[] findRows = Trade_History2.AsEnumerable().Where(row => row.Field<string>("구분") == match.Groups[4].Value && row.Field<string>("종목코드") == match.Groups[6].Value).ToArray();
-
-                                    if (findRows.Any())
-                                    {
-                                        int tmp_cnt = findRows[0]["총매도(개)"].ToString() == "" ? 0 : Convert.ToInt32(findRows[0]["총매도(개)"]);
-                                        int tmp_won = findRows[0]["총매도(원)"].ToString() == "" ? 0 : Convert.ToInt32(findRows[0]["총매도(원)"]);
-                                        int tmp_buy_won = findRows[0]["총매수(원)"].ToString() == "" ? 0 : Convert.ToInt32(findRows[0]["총매수(원)"]);
-
-                                        int tmp = tmp_won + Convert.ToInt32(match.Groups[7].Value) * Convert.ToInt32(match.Groups[8].Value.Replace(",", ""));
-                                        int tmp2 = tmp - tmp_buy_won;
-
-                                        findRows[0]["총매도(개)"] = Convert.ToString(tmp_cnt + Convert.ToInt64(match.Groups[7].Value));
-                                        findRows[0]["총매도(원)"] = Convert.ToString(tmp);
-                                        findRows[0]["총수익(원)"] = Convert.ToString(tmp2);
-                                        findRows[0]["총수익(%)"] = tmp_buy_won == 0 ? "0" : Convert.ToString(Math.Round((double)tmp2 / tmp_buy_won * 100, 3));
-
-                                        Trade_History2.AcceptChanges();
-                                        dataGridView2.DataSource = Trade_History2;
-                                    }
-                                    else
-                                    {
-                                        Trade_History2.Rows.Add(
-                                            match.Groups[4].Value, // 01
-                                            match.Groups[6].Value, // A083450
-                                            match.Groups[5].Value, // GST
-                                            "", //매수(개)
-                                            "", //매수(원)
-                                            match.Groups[7].Value, // 851
-                                            Convert.ToString(Convert.ToInt64(match.Groups[7].Value) * Convert.ToInt64(match.Groups[8].Value.Replace(",", ""))),
-                                            "", //총수익(원)
-                                            "" //총수익(%)
-                                        );
-
-                                        Trade_History2.AcceptChanges();
-                                        dataGridView2.DataSource = Trade_History2;
-                                    }
-                                }
-                            }
-                        }
+                        // Process and aggregate trade data
+                        ProcessTrade(match);
                     }
-                    reader.Close();
                 }
-                //
 
+                // OPTIMIZATION: Update the UI only once after all data is loaded.
+                // This prevents flickering and improves performance significantly.
+                Trade_History.AcceptChanges();
+                dataGridView1.DataSource = Trade_History;
+                Trade_History2.AcceptChanges();
+                dataGridView2.DataSource = Trade_History2;
             }
             catch (Exception ex)
             {
                 MessageBox.Show("파일 읽기 중 오류 발생: " + ex.Message);
             }
+        }
+
+        private void ProcessTrade(Match match)
+        {
+            string tradeType = match.Groups[2].Value.Substring(0, 2); // "매수" or "매도"
+            string 구분 = match.Groups[4].Value;
+            string 종목코드 = match.Groups[6].Value;
+            string 종목명 = match.Groups[5].Value;
+
+            if (!long.TryParse(match.Groups[7].Value, out long quantity) ||
+                !long.TryParse(match.Groups[8].Value.Replace(",", ""), out long price))
+            {
+                // Skip this line if parsing fails, to prevent a crash.
+                return;
+            }
+
+            long tradeValue = quantity * price;
+
+            DataRow[] findRows = Trade_History2.AsEnumerable()
+                .Where(row => row.Field<string>("구분") == 구분 && row.Field<string>("종목코드") == 종목코드)
+                .ToArray();
+
+            DataRow targetRow;
+            if (findRows.Any())
+            {
+                targetRow = findRows[0];
+            }
+            else
+            {
+                targetRow = Trade_History2.NewRow();
+                targetRow["구분"] = 구분;
+                targetRow["종목코드"] = 종목코드;
+                targetRow["종목명"] = 종목명;
+                targetRow["총매수(개)"] = "0";
+                targetRow["총매수(원)"] = "0";
+                targetRow["총매도(개)"] = "0";
+                targetRow["총매도(원)"] = "0";
+                Trade_History2.Rows.Add(targetRow);
+            }
+
+            if (tradeType.Equals("매수"))
+            {
+                long.TryParse(targetRow["총매수(개)"].ToString(), out long currentBuyQty);
+                long.TryParse(targetRow["총매수(원)"].ToString(), out long currentBuyValue);
+
+                targetRow["총매수(개)"] = (currentBuyQty + quantity).ToString();
+                targetRow["총매수(원)"] = (currentBuyValue + tradeValue).ToString();
+            }
+            else // 매도
+            {
+                long.TryParse(targetRow["총매도(개)"].ToString(), out long currentSellQty);
+                long.TryParse(targetRow["총매도(원)"].ToString(), out long currentSellValue);
+
+                targetRow["총매도(개)"] = (currentSellQty + quantity).ToString();
+                targetRow["총매도(원)"] = (currentSellValue + tradeValue).ToString();
+            }
+
+            // Calculate profit
+            long.TryParse(targetRow["총매수(원)"].ToString(), out long totalBuy);
+            long.TryParse(targetRow["총매도(원)"].ToString(), out long totalSell);
+
+            long profit = totalSell - totalBuy;
+            targetRow["총수익(원)"] = profit.ToString();
+            targetRow["총수익(%)"] = totalBuy == 0 ? "0" : Math.Round((double)profit / totalBuy * 100, 3).ToString();
         }
 
     }
