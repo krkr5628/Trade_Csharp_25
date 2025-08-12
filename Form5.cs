@@ -29,6 +29,9 @@ namespace WindowsFormsApp1
         private void read()
         {
             // 파일이 있는 폴더 경로
+            // ERROR: CRITICAL PORTABILITY ISSUE. The paths to the agreement and update
+            // text files are hardcoded. This will fail if the application is run on a
+            // machine without this exact directory structure.
             string folderPath = @"C:\Auto_Trade_Kiwoom\Update\Agreement.txt";
             string folderPath2 = @"C:\Auto_Trade_Kiwoom\Update\Update.txt";
 
@@ -116,8 +119,13 @@ namespace WindowsFormsApp1
 
         public static async Task<string> SendAuthCodeAsync(string authCode)
         {
+            // ERROR: Incorrect HttpClient Usage. A new HttpClient is created for each request,
+            // which can lead to socket exhaustion. A single client should be shared.
             HttpClient client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
             var content = new StringContent($"{{ \"authCode\": \"{authCode}\" }}", Encoding.UTF8, "application/json");
+            // ERROR: CRITICAL FUNCTIONALITY ISSUE. The authentication feature is broken because
+            // the server URL is a placeholder. The comment "IP 노출 우려로 PUSH 금지" (Do not PUSH
+            // due to risk of IP exposure) indicates the real URL was intentionally removed.
             var response = await client.PostAsync("http://your-server-url/auth", content);
 
             if (response.IsSuccessStatusCode)

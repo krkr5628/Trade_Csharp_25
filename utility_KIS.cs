@@ -60,6 +60,9 @@ namespace WindowsFormsApp1
         //접근토큰받기
         public async Task<string> KIS_WebSocket()
         {
+            // ERROR: The domain for the API is hardcoded. The environment for paper trading
+            // (모의투자) is active, while the real trading environment (실전투자) is commented
+            // out. This is error-prone and should be loaded from a configuration file.
             string domain = "https://openapivts.koreainvestment.com:29443";// 모의투자
             //string domain = "https://openapi.koreainvestment.com:9443" //실전투자
             string endpoint = "/oauth2/Approval";
@@ -76,6 +79,9 @@ namespace WindowsFormsApp1
             string jsonData = JsonConvert.SerializeObject(requestData);
 
             // Make a POST request to the token endpoint
+            // ERROR: A new HttpClient is created for every API call. HttpClient is designed
+            // to be instantiated once and reused throughout the application's lifetime.
+            // Creating a new one for each request can lead to socket exhaustion under load.
             using (var client = new HttpClient())
             {
                 // Set the base address
@@ -246,6 +252,9 @@ namespace WindowsFormsApp1
 
         public async Task KIS_Order(string buy_sell, string code, string order_type, string order_amt, string order_price)
         {
+            // ERROR: Environment URLs and transaction IDs are hardcoded. A developer must
+            // manually comment/uncomment these lines to switch between paper and real trading,
+            // which is highly error-prone. This should be handled via configuration.
             //string domain = "https://openapivts.koreainvestment.com:29443"; //모의투자
             string domain = "https://openapi.koreainvestment.com:9443"; //실전투자
             string endpoint = "/uapi/domestic-stock/v1/trading/order-cash";
@@ -312,6 +321,9 @@ namespace WindowsFormsApp1
                 }
                 else
                 {
+                    // ERROR: CRITICAL STABILITY ISSUE. Using MessageBox.Show() for API error
+                    // handling will halt the entire application until a user clicks "OK".
+                    // API errors should be logged and handled gracefully without blocking execution.
                     MessageBox.Show($"Failed to get token. Status code: {response.StatusCode}");
                 }
             }

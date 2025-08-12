@@ -23,6 +23,10 @@ using System.Collections.Concurrent;
 
 namespace WindowsFormsApp1
 {
+    // ERROR: This class is a "God Class". It is over 2000 lines long and handles UI logic,
+    // trading strategy, API communication, logging, file I/O, and more. This violates the
+    // Single Responsibility Principle and makes the code extremely difficult to read,
+    // maintain, and test. It should be refactored into many smaller, more focused classes.
     public partial class Trade_Auto : Form
     {
         //-----------------------------------공용 신호----------------------------------------
@@ -32,6 +36,9 @@ namespace WindowsFormsApp1
 
         //-----------------------------------인증 관련 신호----------------------------------------
 
+        // ERROR: CRITICAL SECURITY FLAW. A sensitive authentication key is hardcoded directly
+        // into the source code. This should be loaded from a secure configuration file or
+        // environment variable, not stored in plain text in the code.
         public static string Authentication = "1ab2c3d4e5f6g7h8i9"; //인증코드에 백슬래시 및 쉼표 불가능
         public static bool Authentication_Check = true; //미인증(false) / 인증(true)
         private int sample_balance = 500000; //500,000원(미인증 매매 금액 제한)
@@ -796,6 +803,9 @@ namespace WindowsFormsApp1
             string formattedDate = DateTime.Now.ToString("yyyyMMdd");
 
             // Paths to save the files
+            // ERROR: CRITICAL PORTABILITY ISSUE. These file paths are hardcoded to an absolute
+            // directory on the C: drive. This application will crash if this exact folder
+            // structure does not exist. Paths should be relative or configurable.
             string filePath = $@"C:\Auto_Trade_Kiwoom\Log\{formattedDate}_full.txt";
             string filePath2 = $@"C:\Auto_Trade_Kiwoom\Log_Trade\{formattedDate}_trade.txt";
             string filePath3 = @"C:\Auto_Trade_Kiwoom\Setting\setting.txt";
@@ -810,6 +820,10 @@ namespace WindowsFormsApp1
             }
             catch (Exception ex)
             {
+                // ERROR: CRITICAL STABILITY ISSUE. Using MessageBox.Show() in an automated
+                // application for error handling is a major flaw. It will halt all execution
+                // of the program, including any background trading logic, until a user
+                // manually clicks "OK". Errors should be logged to a file or handled gracefully.
                 MessageBox.Show("파일 저장 중 오류 발생1: " + ex.Message);
             }
 
@@ -822,6 +836,7 @@ namespace WindowsFormsApp1
             }
             catch (Exception ex)
             {
+                // ERROR: CRITICAL STABILITY ISSUE. Using MessageBox.Show() will halt the application.
                 MessageBox.Show("파일 저장 중 오류 발생2: " + ex.Message);
             }
 
@@ -1219,6 +1234,9 @@ namespace WindowsFormsApp1
                                   $"Message: {e.Exception.Message}\n" +
                                   $"StackTrace:\n{e.Exception.StackTrace}\n";
 
+            // ERROR: CRITICAL STABILITY ISSUE. Using MessageBox.Show() to report a data error
+            // will halt the application until the user clicks "OK". This is especially bad
+            // for an automated trading bot. The error should be logged instead.
             MessageBox.Show(errorMessage);
 
             // 콘솔에 오류 출력 (디버그 모드에서 확인 가능)

@@ -4,6 +4,9 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
+// ERROR: The project uses the default "WindowsFormsApp1" namespace.
+// This should be renamed to something descriptive for the project, like "TradeAutoKiwoom",
+// to improve code clarity and organization.
 namespace WindowsFormsApp1
 {
     static class Program
