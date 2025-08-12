@@ -56,6 +56,8 @@ namespace WindowsFormsApp1
         private void start()
         {
             // 파일이 있는 폴더 경로
+            // ERROR: CRITICAL PORTABILITY ISSUE. The path to the log directory is hardcoded.
+            // This will fail if the application is run on a machine without this exact directory.
             string folderPath = @"C:\Auto_Trade_Kiwoom\Log_Trade";
 
             // 해당 폴더의 모든 파일을 가져오기
@@ -79,6 +81,7 @@ namespace WindowsFormsApp1
         private void read(object sender, EventArgs e)
         {
             // 파일이 있는 폴더 경로
+            // ERROR: CRITICAL PORTABILITY ISSUE. The path to the log directory is hardcoded.
             string folderPath = @"C:\Auto_Trade_Kiwoom\Log_Trade\";
 
             try
@@ -90,10 +93,19 @@ namespace WindowsFormsApp1
                     Trade_History2.Clear();
                     string line;
 
+                    // ERROR: This loop is highly inefficient for UI updates.
+                    // It re-assigns the DataGridView.DataSource on every single line of the log file.
+                    // For large logs, this will cause extreme flickering and poor performance.
+                    // The data should be loaded into the DataTable first, and then the UI should
+                    // be updated only once after the loop finishes.
                     while ((line = reader.ReadLine()) != null)
                     {
                         if (line.Contains("정상완료"))
                         {
+                            // ERROR: Brittle log parsing. This relies on a complex, specific regex pattern.
+                            // If the format of the log message ever changes, this will fail silently and
+                            // the transaction history will not be displayed. It is also vulnerable to
+                            // crashing if a log line is corrupted and a value cannot be converted to a number.
                             string pattern = @"\[(.*?)\]\[Order\] : \[(.*?)/(.*?)/(.*?)\] : (.*?)\((.*?)\) (\d+)개 ([\d,]+)원";
                             Match match = Regex.Match(line, pattern);
                             //

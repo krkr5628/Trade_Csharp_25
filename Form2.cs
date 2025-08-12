@@ -640,6 +640,10 @@ namespace WindowsFormsApp1
 
         //-----------------------------------최종확인----------------------------------------
 
+        // ERROR: This is a monolithic validation method that is over 300 lines long.
+        // It manually checks every single input on the form. This is extremely difficult
+        // to read and maintain. This logic should be broken down into smaller, more
+        // manageable validation methods, perhaps grouped by setting category.
         private bool check()
         {
 
@@ -1542,6 +1546,11 @@ namespace WindowsFormsApp1
             if (check()) return;
 
             //임시저장
+            // ERROR: This save logic is extremely fragile. It manually constructs a text file
+            // line-by-line, with a specific order and format. This is tightly coupled with
+            // the equally fragile loading logic in `utility.cs`. Any change here (like
+            // adding or reordering a line) will break the application's ability to load settings.
+            // A more robust serialization method, like JSON or XML, should be used.
             List<String> tmp = new List<String>();
 
             tmp.Add("자동실행/" + Convert.ToString(auto_trade_allow.Checked));
@@ -1638,6 +1647,8 @@ namespace WindowsFormsApp1
             tmp.Add("Auth/" + Convert.ToString(Trade_Auto.Authentication));
 
             // 저장할 파일 경로
+            // ERROR: CRITICAL PORTABILITY ISSUE. The save path is hardcoded to an absolute
+            // directory on the C: drive. The application will crash if this path is not writable.
             string filePath = $@"C:\Auto_Trade_Kiwoom\Setting\setting.txt";
 
             // StreamWriter를 사용하여 파일 저장
@@ -1657,6 +1668,10 @@ namespace WindowsFormsApp1
         }
 
         //매칭
+        // ERROR: This method for loading settings into the UI is just as fragile as the
+        // `auto_load` method in `utility.cs`. It assumes a fixed order of lines in the
+        // settings file and has no error handling for file-not-found, malformed lines,
+        // or data conversion errors. It will crash if the file is not exactly as expected.
         private void match(string filepath)
         {
             //파일 주소 확인

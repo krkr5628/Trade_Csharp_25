@@ -8,8 +8,14 @@ using System.Windows.Forms;
 
 namespace WindowsFormsApp1
 {
+    // ERROR: This class acts as a container for global state using public static fields.
+    // This is a poor design pattern that leads to tight coupling and makes the application
+    // difficult to test and maintain. A proper settings class or a safer singleton implementation should be used.
     class utility
     {
+        // ERROR: This hardcoded absolute file path makes the application non-portable.
+        // It will crash if this exact directory does not exist on the C: drive.
+        // This path should be made relative or configurable.
         public static string system_route = "C:\\Auto_Trade_Kiwoom\\Setting\\setting.txt";
         public static bool load_check = false;
 
@@ -176,6 +182,15 @@ namespace WindowsFormsApp1
 
             load_check = true;
         }
+        // ERROR: This entire method is extremely fragile and unsafe.
+        // 1. It assumes the settings file exists and has a fixed, specific order for every line.
+        //    Any change to the file will cause it to load incorrect data or crash.
+        // 2. There is NO error handling. It will crash with:
+        //    - FileNotFoundException if the file doesn't exist.
+        //    - IndexOutOfRangeException if a line doesn't contain a '/'.
+        //    - FormatException if a value cannot be converted to its target type (e.g., bool, int).
+        // 3. The StreamReader is not wrapped in a `using` statement. If any exception occurs
+        //    before `reader.Close()`, the file handle will not be released, causing a resource leak.
         public static void auto_load(string filepath)
         {
             StreamReader reader = new StreamReader(filepath);
