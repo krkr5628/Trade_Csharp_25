@@ -639,770 +639,194 @@ namespace WindowsFormsApp1
         }
 
         //-----------------------------------최종확인----------------------------------------
-
-        // ERROR: This is a monolithic validation method that is over 300 lines long.
-        // It manually checks every single input on the form. This is extremely difficult
-        // to read and maintain. This logic should be broken down into smaller, more
-        // manageable validation methods, perhaps grouped by setting category.
-        private bool check()
+        private bool ValidateSettings(List<string> errors)
         {
+            ValidateGeneralSettings(errors);
+            ValidateTradingSetup(errors);
+            ValidateConditions(errors);
+            ValidateTradingRules(errors);
+            ValidateIndexSettings(errors);
+            ValidateExternalServices(errors);
 
+            return !errors.Any();
+        }
+
+        private void ValidateGeneralSettings(List<string> errors)
+        {
             if (auto_trade_allow.Checked)
             {
-                if (market_start_time.Text == "" || market_end_time.Text == "")
+                if (!TryParseTime(market_start_time.Text, out DateTime startTime) || !TryParseTime(market_end_time.Text, out DateTime endTime))
                 {
-                    MessageBox.Show("운영시간 범위를 모두 입력하세요.");
-                    return true;
+                    errors.Add("자동 실행 운영 시간을 올바른 형식(HH:mm:ss)으로 입력하세요.");
                 }
-
-                DateTime result;
-
-                if (!DateTime.TryParse(market_start_time.Text, CultureInfo.InvariantCulture, DateTimeStyles.None, out result))
+                else if (startTime >= endTime)
                 {
-                    MessageBox.Show("자동 실행 운영 시작 시각을 형식(HH:mm:ss)으로 입력하세요.");
-                    return true;
-                }
-
-                DateTime result2;
-
-                if (!DateTime.TryParse(market_end_time.Text, CultureInfo.InvariantCulture, DateTimeStyles.None, out result2))
-                {
-                    MessageBox.Show("자동 실행 운영 종료 시각을 형식(HH:mm:ss)으로 입력하세요.");
-                    return true;
-                }
-
-                if (result > result2)
-                {
-                    MessageBox.Show("자동 실행 운영 시작 시각을 종료 시각보다 작게 입력하세요.");
-                    return true;
-                }
-
-            }
-
-            //기본설정 및 추가 옵션 설정
-            if (String.IsNullOrEmpty(account_list.Text))
-            {
-                MessageBox.Show("계좌번호를 선택하세요.");
-                return true;
-            }
-
-            if (String.IsNullOrEmpty(initial_balance.Text))
-            {
-                MessageBox.Show("초기자산을 입력하세요.");
-                return true;
-            }
-
-            if (int.TryParse(initial_balance.Text, out int result3))
-            {
-                if (result3 < 0)
-                {
-                    MessageBox.Show("초기자산을 0보다 큰 정수로 입력하세요.");
-                    return true;
-                }
-            }
-            else
-            {
-                MessageBox.Show("초기자산을 int32 범위의 양의 정수로 입력하세요.");
-                return true;
-            }
-
-            if (buy_per_price.Checked)
-            {
-                if (int.TryParse(buy_per_price_text.Text, out int result4))
-                {
-                    if (result4 < 0)
-                    {
-                        MessageBox.Show("종목당 매수 금액을 0보다 큰 정수로 입력하세요.");
-                        return true;
-                    }
-                }
-                else
-                {
-                    MessageBox.Show("종목당 매수 금액을 int32 범위의 양의 정수로 입력하세요.");
-                    return true;
+                    errors.Add("자동 실행 운영 시작 시각을 종료 시각보다 이전으로 설정하세요.");
                 }
             }
 
-            if (buy_per_amount.Checked)
+            if (string.IsNullOrEmpty(account_list.Text)) errors.Add("계좌번호를 선택하세요.");
+            if (!IsPositiveInteger(initial_balance.Text)) errors.Add("초기자산을 0보다 큰 정수로 입력하세요.");
+
+            if (buy_per_price.Checked && !IsPositiveInteger(buy_per_price_text.Text)) errors.Add("종목당 매수 금액을 0보다 큰 정수로 입력하세요.");
+            if (buy_per_amount.Checked && !IsPositiveInteger(buy_per_amount_text.Text)) errors.Add("종목당 매수 수량을 0보다 큰 정수로 입력하세요.");
+            if (buy_per_percent.Checked && (!IsIntegerInRange(buy_per_percent_text.Text, 0, 100))) errors.Add("종목당 매수 비율을 0에서 100 사이의 정수로 입력하세요.");
+
+            if (!IsPositiveInteger(maxbuy.Text)) errors.Add("종목당 최대 매수 금액을 0보다 큰 정수로 입력하세요.");
+            if (!IsPositiveInteger(maxbuy_acc.Text)) errors.Add("최대 매수 종목 수를 0보다 큰 정수로 입력하세요.");
+
+            if (!IsPositiveInteger(min_price.Text, out int minPrice) || !IsPositiveInteger(max_price.Text, out int maxPrice))
             {
-                if (int.TryParse(buy_per_amount_text.Text, out int result5))
-                {
-                    if (result5 < 0)
-                    {
-                        MessageBox.Show("종목당 매수 수량을 0보다 큰 정수로 입력하세요.");
-                        return true;
-                    }
-                }
-                else
-                {
-                    MessageBox.Show("종목당 매수 수량을 int32 범위의 양의 정수로 입력하세요.");
-                    return true;
-                }
+                errors.Add("최소/최대 종목 매수가를 0보다 큰 정수로 입력하세요.");
+            }
+            else if (minPrice > maxPrice)
+            {
+                errors.Add("최소 종목 매수가가 최대 종목 매수가보다 클 수 없습니다.");
             }
 
-            if (buy_per_percent.Checked)
+            if (max_hold.Checked && !IsIntegerInRange(max_hold_text.Text, 1, 100)) errors.Add("최대 보유 종목 수를 1에서 100 사이의 정수로 입력하세요.");
+        }
+
+        private void ValidateTradingSetup(List<string> errors)
+        {
+            if (string.IsNullOrEmpty(buy_set1.Text) || string.IsNullOrEmpty(buy_set2.Text) || string.IsNullOrEmpty(sell_set1.Text) || string.IsNullOrEmpty(sell_set2.Text))
             {
-                if (int.TryParse(buy_per_percent_text.Text, out int result6))
-                {
-                    if (result6 < 0 || result6 > 100)
-                    {
-                        MessageBox.Show("종목당 매수 비율을 (0 ~ 100) 로 입력하세요.");
-                        return true;
-                    }
-                }
-                else
-                {
-                    MessageBox.Show("종목당 매수 비율(0 ~ 100)을 양의 정수로 입력하세요.");
-                    return true;
-                }
+                errors.Add("모든 매매 방식을 설정해주세요.");
+            }
+            if (string.IsNullOrEmpty(sell_set1_after.Text) || string.IsNullOrEmpty(sell_set2_after.Text))
+            {
+                errors.Add("시간외 매매 방식을 모두 설정해주세요.");
             }
 
-            if (int.TryParse(maxbuy.Text, out int result7))
-            {
-                if (result7 < 0)
-                {
-                    MessageBox.Show("종목당 최대 매수 금액을 0보다 큰 정수로 입력하세요.");
-                    return true;
-                }
-            }
-            else
-            {
-                MessageBox.Show("종목당 최대 매수 금액을 int32 범위의 양의 정수로 입력하세요.");
-                return true;
-            }
+            if (buy_set1.Text == "지정가" && buy_set2.Text == "시장가") errors.Add("매수 방식이 지정가일 때, 호가를 선택해야 합니다.");
+            if (buy_set1.Text == "시장가" && buy_set2.Text != "시장가") errors.Add("매수 방식이 시장가일 때, 가격도 시장가여야 합니다.");
+            if (sell_set1.Text == "지정가" && sell_set2.Text == "시장가") errors.Add("매도 방식이 지정가일 때, 호가를 선택해야 합니다.");
+            if (sell_set1.Text == "시장가" && sell_set2.Text != "시장가") errors.Add("매도 방식이 시장가일 때, 가격도 시장가여야 합니다.");
+        }
 
-            if (int.TryParse(maxbuy_acc.Text, out int result8))
-            {
-                if (result8 < 0)
-                {
-                    MessageBox.Show("최대 매수 종목 수를 0보다 큰 정수로 입력하세요.");
-                    return true;
-                }
-            }
-            else
-            {
-                MessageBox.Show("최대 매수 종목 수를 int32 범위의 양의 정수로 입력하세요.");
-                return true;
-            }
-
-            int result9;
-
-            if (int.TryParse(min_price.Text, out result9))
-            {
-                if (result9 < 0)
-                {
-                    MessageBox.Show("최소 종목 매수가를 0보다 큰 정수로 입력하세요.");
-                    return true;
-                }
-            }
-            else
-            {
-                MessageBox.Show("최소 종목 매수가를 int32 범위의 양의 정수로 입력하세요.");
-                return true;
-            }
-
-            int result10;
-
-            if (int.TryParse(max_price.Text, out result10))
-            {
-                if (result10 < 0)
-                {
-                    MessageBox.Show("최대 종목 매수가를 0보다 큰 정수로 입력하세요.");
-                    return true;
-                }
-            }
-            else
-            {
-                MessageBox.Show("최대 종목 매수가를 int32 범위의 양의 정수로 입력하세요.");
-                return true;
-            }
-
-            if (result9 > result10)
-            {
-                MessageBox.Show("최소 종목 매수가를 최대 종목 매수가보다 작게 하세요.");
-                return true;
-            }
-
-            if (max_hold.Checked)
-            {
-                if (int.TryParse(max_hold_text.Text, out int result11))
-                {
-                    if (result3 < 0)
-                    {
-                        MessageBox.Show("최대 보유 종목 수를 0보다 큰 정수로 입력하세요.");
-                        return true;
-                    }
-                }
-                else
-                {
-                    MessageBox.Show("최대 보유 종목 수를 int32 범위의 양의 정수로 입력하세요.");
-                    return true;
-                }
-            }
-
-
-            //매매방식 및 매매방식(시간외)
-            if (buy_set1.Text == "" || buy_set2.Text == "" || sell_set1.Text == "" || sell_set2.Text == "")
-            {
-                MessageBox.Show("모든 매매 방식을 설정해주세요.");
-                return true;
-            }
-
-            if (sell_set1_after.Text == "" || sell_set2_after.Text == "")
-            {
-                MessageBox.Show("시간외 매매 방식을 모두 설정해주세요.");
-                return true;
-            }
-
-            if (buy_set1.Text == "지정가" && buy_set2.Text == "시장가")
-            {
-                MessageBox.Show("지정가로 선택시 호가를 선택하세요.");
-                return true;
-            }
-
-            if (buy_set1.Text == "시장가" && !(buy_set2.Text == "시장가"))
-            {
-                MessageBox.Show("시장가로 선택시 시장가를 선택하세요.");
-                return true;
-            }
-
-            if (sell_set1.Text == "지정가" && sell_set2.Text == "시장가")
-            {
-                MessageBox.Show("지정가로 선택시 호가를 선택하세요.");
-                return true;
-            }
-
-            if (sell_set1.Text == "시장가" && !(sell_set2.Text == "시장가"))
-            {
-                MessageBox.Show("시장가로 선택시 시장가를 선택하세요.");
-                return true;
-            }
-
-
-            //조건설정
+        private void ValidateConditions(List<string> errors)
+        {
             if (buy_condition.Checked)
             {
-                if (!DateTime.TryParse(buy_condition_start.Text, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime result))
+                if (!TryParseTime(buy_condition_start.Text, out DateTime startTime) || !TryParseTime(buy_condition_end.Text, out DateTime endTime))
                 {
-                    MessageBox.Show("매수 시작 시각을 형식(HH:mm:ss)으로 입력하세요.");
-                    return true;
+                    errors.Add("매수 조건 시간을 올바른 형식(HH:mm:ss)으로 입력하세요.");
+                }
+                else if (startTime >= endTime)
+                {
+                    errors.Add("매수 조건 시작 시각을 종료 시각보다 이전으로 설정하세요.");
                 }
 
-                if (!DateTime.TryParse(buy_condition_start.Text, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime result2))
-                {
-                    MessageBox.Show("매수 중단 시각을 형식(HH:mm:ss)으로 입력하세요.");
-                    return true;
-                }
-
-                if (result > result2)
-                {
-                    MessageBox.Show("매수 시작 시각을 매수 중단 시각보다 작게 입력하세요.");
-                    return true;
-                }
-
-                if (String.IsNullOrEmpty(Fomula_list_buy.Text))
-                {
-                    MessageBox.Show("매수 조건식을 선택하세요.");
-                    return true;
-                }
-
-                if (!buy_mode_or.Checked && Fomula_list_buy.Text.Split(',').Length != 2)
-                {
-                    MessageBox.Show("AND INDEPENDENT DUAL 모드에서 매수 조건식을 2개 선택하세요.");
-                    return true;
-                }
-
-                if (buy_mode_or.Checked && Fomula_list_buy.Text.Split(',').Length > 3)
-                {
-                    MessageBox.Show("OR 모드에서 매수 조건식을 3개 이하로 선택하세요.");
-                    return true;
-                }
+                if (string.IsNullOrEmpty(Fomula_list_buy.Text)) errors.Add("매수 조건식을 선택하세요.");
+                if (buy_mode_and.Checked && Fomula_list_buy.Text.Split(',').Length != 2) errors.Add("AND 모드에서는 매수 조건식을 2개 선택해야 합니다.");
+                if (buy_mode_independent.Checked && Fomula_list_buy.Text.Split(',').Length != 2) errors.Add("INDEPENDENT 모드에서는 매수 조건식을 2개 선택해야 합니다.");
+                if (buy_mode_or.Checked && Fomula_list_buy.Text.Split(',').Length > 3) errors.Add("OR 모드에서는 매수 조건식을 3개 이하로 선택해야 합니다.");
             }
 
             if (sell_condition.Checked)
             {
-                if (!DateTime.TryParse(sell_condition_start.Text, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime result))
+                if (!TryParseTime(sell_condition_start.Text, out DateTime startTime) || !TryParseTime(sell_condition_end.Text, out DateTime endTime))
                 {
-                    MessageBox.Show("매도 시작 시각을 형식(HH:mm:ss)으로 입력하세요.");
-                    return true;
+                    errors.Add("매도 조건 시간을 올바른 형식(HH:mm:ss)으로 입력하세요.");
                 }
-
-                if (!DateTime.TryParse(sell_condition_start.Text, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime result2))
+                else if (startTime >= endTime)
                 {
-                    MessageBox.Show("매도 중단 시각을 형식(HH:mm:ss)으로 입력하세요.");
-                    return true;
+                    errors.Add("매도 조건 시작 시각을 종료 시각보다 이전으로 설정하세요.");
                 }
-
-                if (result > result2)
-                {
-                    MessageBox.Show("매도 시작 시각을 매도 중단 시각보다 작게 입력하세요.");
-                    return true;
-                }
-
-                if (String.IsNullOrEmpty(Fomula_list_sell.Text))
-                {
-                    MessageBox.Show("매도 조건식을 선택하세요.");
-                    return true;
-                }
+                if (string.IsNullOrEmpty(Fomula_list_sell.Text)) errors.Add("매도 조건식을 선택하세요.");
             }
+        }
 
-            //매매설정
-            if (profit_percent.Checked)
-            {
-                if (double.TryParse(profit_percent_text.Text, out double resu))
-                {
-                    if (resu < 0)
-                    {
-                        MessageBox.Show("익절(%)(double)를 0보다 크게 입력하세요.");
-                        return true;
-                    }
-                }
-                else
-                {
-                    MessageBox.Show("익절(%)(double)를 숫자로 입력하세요.");
-                    return true;
-                }
-            }
+        private void ValidateTradingRules(List<string> errors)
+        {
+            if (profit_percent.Checked && !IsPositiveDouble(profit_percent_text.Text)) errors.Add("익절(%)을 0보다 큰 숫자로 입력하세요.");
+            if (profit_won.Checked && !IsPositiveInteger(profit_won_text.Text)) errors.Add("익절(원)을 0보다 큰 정수로 입력하세요.");
+            if (profit_ts.Checked && (!IsPositiveDouble(profit_ts_text.Text) || !IsPositiveDouble(profit_ts_text2.Text))) errors.Add("익절TS 값을 0보다 큰 숫자로 입력하세요.");
 
-            if (profit_won.Checked)
-            {
-                if (int.TryParse(profit_won_text.Text, out int result12))
-                {
-                    if (result12 < 0)
-                    {
-                        MessageBox.Show("익절(원)을 0보다 크게 입력하세요.");
-                        return true;
-                    }
-                }
-                else
-                {
-                    MessageBox.Show("익절(원)을 int32 범위의 양의 정수로 입력하세요.");
-                    return true;
-                }
-            }
+            if (loss_percent.Checked && !IsPositiveDouble(loss_percent_text.Text)) errors.Add("손절(%)을 0보다 큰 숫자로 입력하세요.");
+            if (loss_won.Checked && !IsPositiveInteger(loss_won_text.Text)) errors.Add("손절(원)을 0보다 큰 정수로 입력하세요.");
 
-            if (profit_ts.Checked)
-            {
-                if (double.TryParse(profit_ts_text.Text, out double resu2))
-                {
-                    if (resu2 < 0)
-                    {
-                        MessageBox.Show("익절TS(double)를 0보다 크게 입력하세요.");
-                        return true;
-                    }
-                }
-                else
-                {
-                    MessageBox.Show("익절TS(duble)를 숫자로 입력하세요.");
-                    return true;
-                }
-
-                if (double.TryParse(profit_ts_text2.Text, out double resu21))
-                {
-                    if (resu21 < 0)
-                    {
-                        MessageBox.Show("익절TS(double)를 0보다 크게 입력하세요.");
-                        return true;
-
-                    }
-                }
-                else
-                {
-                    MessageBox.Show("익절TS(duble)를 숫자로 입력하세요.");
-                    return true;
-                }
-            }
-
-
-            if (loss_percent.Checked)
-            {
-                if (double.TryParse(loss_percent_text.Text, out double resu3))
-                {
-                    if (resu3 < 0)
-                    {
-                        MessageBox.Show("손절(double)을 0보다 크게 입력하세요.");
-                        return true;
-                    }
-                }
-                else
-                {
-                    MessageBox.Show("손절(double)을 숫자로 입력하세요.");
-                    return true;
-
-                }
-            }
-
-            if (loss_won.Checked)
-            {
-                if (int.TryParse(loss_won_text.Text, out int result13))
-                {
-                    if (result13 < 0)
-                    {
-                        MessageBox.Show("손절(원)을 0보다 크게 입력하세요.");
-                        return true;
-                    }
-
-                }
-                else
-                {
-                    MessageBox.Show("손절(원)을 int32 범위의 양의 정수로 입력하세요.");
-                    return true;
-                }
-            }
-
-
-            //청산설정
             if (clear_sell.Checked)
             {
-                if (!DateTime.TryParse(clear_sell_start.Text, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime result))
+                if (!TryParseTime(clear_sell_start.Text, out DateTime startTime) || !TryParseTime(clear_sell_end.Text, out DateTime endTime))
                 {
-                    MessageBox.Show("청산 시작 시각을 형식(HH:mm:ss)으로 입력하세요.");
-                    return true;
+                    errors.Add("청산 시간을 올바른 형식(HH:mm:ss)으로 입력하세요.");
                 }
-
-                if (!DateTime.TryParse(clear_sell_end.Text, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime result2))
+                else if (startTime >= endTime)
                 {
-                    MessageBox.Show("청산 중단 시각을 형식(HH:mm:ss)으로 입력하세요.");
-                    return true;
-                }
-
-                if (result > result2)
-                {
-                    MessageBox.Show("청산 시작 시각을 청산 중단 시각보다 작게 입력하세요.");
-                    return true;
+                    errors.Add("청산 시작 시각을 종료 시각보다 이전으로 설정하세요.");
                 }
             }
+            if (clear_sell_mode.Checked && !clear_sell_profit.Checked && !clear_sell_loss.Checked) errors.Add("개별청산 선택 시, 청산익절 또는 청산손절을 선택해야 합니다.");
+            if (clear_sell_profit.Checked && !IsPositiveDouble(clear_sell_profit_text.Text)) errors.Add("청산익절(%)을 0보다 큰 숫자로 입력하세요.");
+            if (clear_sell_loss.Checked && !IsPositiveDouble(clear_sell_loss_text.Text)) errors.Add("청산손절(%)을 0보다 큰 숫자로 입력하세요.");
 
-            if (clear_sell.Checked && clear_sell_mode.Checked)
+            if (term_for_buy.Checked && !IsIntegerInRange(term_for_buy_text.Text, 750, int.MaxValue)) errors.Add("종목매수텀을 750ms 이상으로 입력하세요.");
+            if (term_for_sell.Checked && !IsIntegerInRange(term_for_sell_text.Text, 750, int.MaxValue)) errors.Add("종목매도텀을 750ms 이상으로 입력하세요.");
+            if (term_for_non_buy.Checked && !IsPositiveInteger(term_for_non_buy_text.Text)) errors.Add("미체결매수취소 텀을 0보다 큰 정수로 입력하세요.");
+            if (term_for_non_sell.Checked && !IsPositiveInteger(term_for_non_sell_text.Text)) errors.Add("미체결매도취소 텀을 0보다 큰 정수로 입력하세요.");
+        }
+
+        private void ValidateIndexSettings(List<string> errors)
+        {
+            if (type0_selection.Checked && !AreNumericInputsValid(type0_start, type0_end)) errors.Add("매수지수연동(#0) 범위를 숫자로 입력하고, 시작값이 종료값보다 작아야 합니다.");
+            if (type1_selection.Checked && !AreNumericInputsValid(type1_start, type1_end)) errors.Add("매수지수연동(#1) 범위를 숫자로 입력하고, 시작값이 종료값보다 작아야 합니다.");
+            if (type2_selection.Checked && !AreNumericInputsValid(type2_start, type2_end)) errors.Add("매수지수연동(#2) 범위를 숫자로 입력하고, 시작값이 종료값보다 작아야 합니다.");
+            if (type3_selection.Checked && !AreNumericInputsValid(type3_start, type3_end)) errors.Add("매수지수연동(#3) 범위를 숫자로 입력하고, 시작값이 종료값보다 작아야 합니다.");
+            if (type4_selection.Checked && !AreNumericInputsValid(type4_start, type4_end)) errors.Add("매수지수연동(#4) 범위를 숫자로 입력하고, 시작값이 종료값보다 작아야 합니다.");
+            if (type5_selection.Checked && !AreNumericInputsValid(type5_start, type5_end)) errors.Add("매수지수연동(#5) 범위를 숫자로 입력하고, 시작값이 종료값보다 작아야 합니다.");
+
+            if (type0_selection_all.Checked && !AreNumericInputsValid(type0_all_start, type0_all_end)) errors.Add("청산지수연동(#0) 범위를 숫자로 입력하고, 시작값이 종료값보다 작아야 합니다.");
+            if (type1_selection_all.Checked && !AreNumericInputsValid(type1_all_start, type1_all_end)) errors.Add("청산지수연동(#1) 범위를 숫자로 입력하고, 시작값이 종료값보다 작아야 합니다.");
+            if (type2_selection_all.Checked && !AreNumericInputsValid(type2_all_start, type2_all_end)) errors.Add("청산지수연동(#2) 범위를 숫자로 입력하고, 시작값이 종료값보다 작아야 합니다.");
+            if (type3_selection_all.Checked && !AreNumericInputsValid(type3_all_start, type3_all_end)) errors.Add("청산지수연동(#3) 범위를 숫자로 입력하고, 시작값이 종료값보다 작아야 합니다.");
+            if (type4_selection_all.Checked && !AreNumericInputsValid(type4_all_start, type4_all_end)) errors.Add("청산지수연동(#4) 범위를 숫자로 입력하고, 시작값이 종료값보다 작아야 합니다.");
+            if (type5_selection_all.Checked && !AreNumericInputsValid(type5_all_start, type5_all_end)) errors.Add("청산지수연동(#5) 범위를 숫자로 입력하고, 시작값이 종료값보다 작아야 합니다.");
+        }
+
+        private void ValidateExternalServices(List<string> errors)
+        {
+            if (Telegram_Allow.Checked && (string.IsNullOrEmpty(telegram_user_id.Text) || string.IsNullOrEmpty(telegram_token.Text)))
             {
-                MessageBox.Show("청산 일반과 개별청산 동시 선택시 청산일반을 우선 실행합니다.");
+                errors.Add("텔레그램 사용 시 USER_ID와 TOKEN을 모두 입력해야 합니다.");
             }
 
-            if (!clear_sell_mode.Checked && clear_sell_profit.Checked || clear_sell_loss.Checked)
-            {
-                MessageBox.Show("청산익절 및 청산손절을 사용하기 위해서 개별청산을 선택하세요.");
-                return true;
-            }
-
-            if (clear_sell_mode.Checked && !clear_sell_profit.Checked && !clear_sell_loss.Checked)
-            {
-                MessageBox.Show("개별청산 선택시 청산익절 혹은 청산손절을 선택하세요.");
-                return true;
-            }
-
-            if (clear_sell_profit.Checked)
-            {
-                if (double.TryParse(clear_sell_profit_text.Text, out double resu4))
-                {
-                    if (resu4 < 0)
-                    {
-                        MessageBox.Show("청산익절(double)을 0보다 크게 입력하세요.");
-                        return true;
-                    }
-                }
-                else
-                {
-                    MessageBox.Show("청산익절(double)을 숫자로 입력하세요.");
-                    return true;
-                }
-            }
-
-            if (clear_sell_loss.Checked)
-            {
-                if (double.TryParse(clear_sell_loss_text.Text, out double resu5))
-                {
-                    if (resu5 < 0)
-                    {
-                        MessageBox.Show("청산손절(double)을 0보다 크게 입력하세요.");
-                        return true;
-                    }
-                }
-                else
-                {
-                    MessageBox.Show("청산손절(double)을 숫자로 입력하세요.");
-                    return true;
-                }
-            }
-
-            //지연설정
-            if (term_for_buy.Checked)
-            {
-                if (int.TryParse(term_for_buy_text.Text, out int result15))
-                {
-                    if (result15 < 750)
-                    {
-                        MessageBox.Show("종목매수텀을 750보다 크게 입력하세요.");
-                        return true;
-                    }
-                }
-                else
-                {
-                    MessageBox.Show("종목매수텀을 int32 범위의 양의 정수(ms)로 입력하세요.");
-                    return true;
-                }
-            }
-
-            if (term_for_sell.Checked)
-            {
-                if (int.TryParse(term_for_sell_text.Text, out int result16))
-                {
-                    if (result16 < 750)
-                    {
-                        MessageBox.Show("종목매도텀을 750보다 크게 입력하세요.");
-                        return true;
-                    }
-                }
-                else
-                {
-                    MessageBox.Show("종목매도텀을 int32 범위의 양의 정수(ms)로 입력하세요.");
-                    return true;
-
-                }
-            }
-
-            if (term_for_non_buy.Checked)
-            {
-                if (int.TryParse(term_for_non_buy_text.Text, out int result17))
-                {
-                    if (result17 < 0)
-                    {
-                        MessageBox.Show("미체결취소(매수)텀을 0보다 크게 입력하세요.");
-                        return true;
-
-                    }
-                }
-                else
-                {
-                    MessageBox.Show("미체결취소(매수)텀을 int32 범위의 양의 정수(ms)로 입력하세요.");
-                    return true;
-                }
-            }
-
-            if (term_for_non_sell.Checked)
-            {
-                if (int.TryParse(term_for_non_sell_text.Text, out int result18))
-                {
-                    if (result18 < 0)
-                    {
-                        MessageBox.Show("미체결취소(매도)텀을 0보다 크게 입력하세요.");
-                        return true;
-                    }
-                }
-                else
-                {
-                    MessageBox.Show("미체결취소(매도)텀을 int32 범위의 양의 정수(ms)로 입력하세요.");
-                    return true;
-                }
-            }
-
-            //지수 선물 연동(매수)
-            if (type0_selection.Checked)
-            {
-                if (ValidateIntegerInput(type0_start, type0_end, "매수지수연동(#0)", "외국인 선물"))
-                {
-                    return true;
-                }
-            }
-
-            if (type1_selection.Checked)
-            {
-                if (ValidateInput(type1_start, type1_end, "매수지수연동(#1)", "코스피 선물"))
-                {
-                    return true;
-                }
-            }
-
-            if (type2_selection.Checked)
-            {
-                if (ValidateInput(type2_start, type2_end, "매수지수연동(#2)", "코스닥 선물"))
-                {
-                    return true;
-                }
-            }
-
-            if (type3_selection.Checked)
-            {
-                if (ValidateInput(type3_start, type3_end, "매수지수연동(#3)", "DOW30"))
-                {
-                    return true;
-                }
-            }
-
-            if (type4_selection.Checked)
-            {
-                if (ValidateInput(type4_start, type4_end, "매수지수연동(#4)", "S&P500"))
-                {
-                    return true;
-                }
-            }
-
-            if (type5_selection.Checked)
-            {
-                if (ValidateInput(type5_start, type5_end, "매수지수연동(#5)", "NASDAQ100"))
-                {
-                    return true;
-                }
-            }
-
-
-            //지수 선물 연동(청산)
-            if (type0_selection_all.Checked)
-            {
-                if (ValidateIntegerInput(type0_all_start, type0_all_end, "청산지수연동(#0)", "외국인 선물"))
-                {
-                    return true;
-                }
-            }
-
-            if (type1_selection.Checked)
-            {
-                if (ValidateInput(type1_all_start, type1_all_end, "청산지수연동(#1)", "코스피 선물"))
-                {
-                    return true;
-                }
-            }
-
-            if (type2_selection.Checked)
-            {
-                if (ValidateInput(type2_all_start, type2_all_end, "청산지수연동(#2)", "코스닥 선물"))
-                {
-                    return true;
-                }
-            }
-
-            if (type3_selection.Checked)
-            {
-                if (ValidateInput(type3_all_start, type3_all_end, "청산지수연동(#3)", "DOW30"))
-                {
-                    return true;
-                }
-            }
-
-            if (type4_selection.Checked)
-            {
-                if (ValidateInput(type4_all_start, type4_all_end, "청산지수연동(#4)", "S&P500"))
-                {
-                    return true;
-                }
-            }
-
-            if (type5_selection.Checked)
-            {
-                if (ValidateInput(type5_all_start, type5_all_end, "청산지수연동(#5)", "NASDAQ100"))
-                {
-                    return true;
-                }
-            }         
-
-            //Telegram
-            if (Telegram_Allow.Checked)
-            {
-                if (telegram_user_id.Text == "" || telegram_token.Text == "")
-                {
-                    MessageBox.Show("TELEGRAM USER_ID와 TOKE을 모두 입력하세요.");
-                    return true;
-                }
-            }
-
-
-            //KIS
             if (KIS_Allow.Checked)
             {
-                if (KIS_Account.Text == "" || appkey.Text == "" || appsecret.Text == "" || kis_amount.Text == "")
+                if (string.IsNullOrEmpty(KIS_Account.Text) || string.IsNullOrEmpty(appkey.Text) || string.IsNullOrEmpty(appsecret.Text) || !IsPositiveInteger(kis_amount.Text))
                 {
-                    MessageBox.Show("KIS 계좌번호, appkey, appsecret, amount를 모두 입력하세요.");
-                    return true;
-                }
-
-                if (int.TryParse(kis_amount.Text, out int result))
-                {
-                    if (result < 0)
-                    {
-                        MessageBox.Show("KIS amount를 0보다 크게 입력하세요.");
-                        return true;
-                    }
-                }
-                else
-                {
-                    MessageBox.Show("KIS amount를 int32 범위의 양의 정수로 입력하세요.");
-                    return true;
+                    errors.Add("KIS 사용 시 계좌번호, appkey, appsecret, amount(양의 정수)를 모두 입력해야 합니다.");
                 }
             }
 
-            //TradingVIew
             if (TradingView_Webhook.Checked)
             {
-                DateTime result;
-
-                if (!DateTime.TryParse(TradingView_Webhook_Start.Text, CultureInfo.InvariantCulture, DateTimeStyles.None, out result))
+                if (!TryParseTime(TradingView_Webhook_Start.Text, out DateTime startTime) || !TryParseTime(TradingView_Webhook_Stop.Text, out DateTime endTime))
                 {
-                    MessageBox.Show("TradingView 매수 시작 시각을 형식(HH:mm:ss)으로 입력하세요.");
-                    return true;
+                    errors.Add("TradingView 웹훅 시간을 올바른 형식(HH:mm:ss)으로 입력하세요.");
                 }
-
-                DateTime result2;
-
-                if (!DateTime.TryParse(TradingView_Webhook_Stop.Text, CultureInfo.InvariantCulture, DateTimeStyles.None, out result2))
+                else if (startTime >= endTime)
                 {
-                    MessageBox.Show("TradingView 매수 중단 시각을 형식(HH:mm:ss)으로 입력하세요.");
-                    return true;
-                }
-
-                if (result > result2)
-                {
-                    MessageBox.Show("TradingView 매수 시작 시각을 매수 중단 시각보다 작게 입력하세요.");
-                    return true;
+                    errors.Add("TradingView 웹훅 시작 시각을 종료 시각보다 이전으로 설정하세요.");
                 }
             }
-
-            return false;
-
         }
 
-        private bool ValidateIntegerInput(TextBox startTextBox, TextBox endTextBox, string messagePrefix, string messagePostfix)
+        // --- Validation Helper Methods ---
+        private bool IsPositiveInteger(string value) => int.TryParse(value, out int number) && number >= 0;
+        private bool IsPositiveInteger(string value, out int number)
         {
-            if (!int.TryParse(startTextBox.Text, out int startValue))
-            {
-                MessageBox.Show($"{messagePrefix} {messagePostfix} 값 범위 시작(왼쪽)을 int32 범위의 정수로 입력하세요.");
-                return true;
-            }
-
-            if (!int.TryParse(endTextBox.Text, out int endValue))
-            {
-                MessageBox.Show($"{messagePrefix} {messagePostfix} 값 범위 종료(오른쪽)을 int32 범위의 정수로 입력하세요.");
-                return true;
-            }
-
-
-            if (startValue > endValue)
-            {
-                MessageBox.Show($"{messagePrefix} {messagePostfix} 값 범위에서 시작(왼쪽)을 종료(오른쪽)보다 작게 입력하세요.");
-                return true;
-            }
-
-            return false;
+            return int.TryParse(value, out number) && number >= 0;
         }
-
-        private bool ValidateInput(TextBox startTextBox, TextBox endTextBox, string messagePrefix, string messagePostfix)
+        private bool IsIntegerInRange(string value, int min, int max) => int.TryParse(value, out int number) && number >= min && number <= max;
+        private bool IsPositiveDouble(string value) => double.TryParse(value, out double number) && number >= 0.0;
+        private bool TryParseTime(string timeString, out DateTime time) => DateTime.TryParseExact(timeString, "HH:mm:ss", CultureInfo.InvariantCulture, DateTimeStyles.None, out time);
+        private bool AreNumericInputsValid(TextBox start, TextBox end)
         {
-            if (!double.TryParse(startTextBox.Text, out double startValue))
+            if (double.TryParse(start.Text, out double startValue) && double.TryParse(end.Text, out double endValue))
             {
-                MessageBox.Show($"{messagePrefix} {messagePostfix} 값 범위 시작(왼쪽)을 double 범위의 숫자로 입력하세요.");
-                return true;
+                return startValue < endValue;
             }
-
-            if (!double.TryParse(endTextBox.Text, out double endValue))
-            {
-                MessageBox.Show($"{messagePrefix} {messagePostfix} 값 범위 종료(오른쪽)을 double 범위의 숫자로 입력하세요.");
-                return true;
-            }
-
-            if (startValue > endValue)
-            {
-                MessageBox.Show($"{messagePrefix} {messagePostfix} 값 범위에서 시작(왼쪽)을 종료(오른쪽)보다 작게 입력하세요.");
-                return true;
-            }
-
             return false;
         }
 
@@ -1538,7 +962,12 @@ namespace WindowsFormsApp1
         //settubg  저장
         private void setting_save(object sender, EventArgs e)
         {
-            if (check()) return;
+            var validationErrors = new List<string>();
+            if (!ValidateSettings(validationErrors))
+            {
+                MessageBox.Show("다음 오류를 수정해주세요:\n\n" + string.Join("\n", validationErrors), "입력 오류", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
 
             UpdateSettingsFromForm();
             utility.SaveSettings();

@@ -796,91 +796,82 @@ namespace WindowsFormsApp1
         //Process.Kill()에서 비정상 작동할 가능성 높음
         private void Form_FormClosed(object sender, FormClosedEventArgs e)
         {
-            string formattedDate = DateTime.Now.ToString("yyyyMMdd");
-
-            // Paths to save the files
-            // ERROR: CRITICAL PORTABILITY ISSUE. These file paths are hardcoded to an absolute
-            // directory on the C: drive. This application will crash if this exact folder
-            // structure does not exist. Paths should be relative or configurable.
-            string filePath = $@"C:\Auto_Trade_Kiwoom\Log\{formattedDate}_full.txt";
-            string filePath2 = $@"C:\Auto_Trade_Kiwoom\Log_Trade\{formattedDate}_trade.txt";
-            string filePath3 = @"C:\Auto_Trade_Kiwoom\Setting\setting.txt";
-
-            // Save log files
             try
             {
-                using (StreamWriter writer = new StreamWriter(filePath, true))
-                {
-                    writer.Write(string.Join("", log_full));
-                }
-            }
-            catch (Exception ex)
-            {
-                // ERROR: CRITICAL STABILITY ISSUE. Using MessageBox.Show() in an automated
-                // application for error handling is a major flaw. It will halt all execution
-                // of the program, including any background trading logic, until a user
-                // manually clicks "OK". Errors should be logged to a file or handled gracefully.
-                MessageBox.Show("파일 저장 중 오류 발생1: " + ex.Message);
-            }
+                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+                string logDir = Path.Combine(baseDir, "Log");
+                string tradeLogDir = Path.Combine(baseDir, "Log_Trade");
+                string settingDir = Path.Combine(baseDir, "Setting");
 
-            try
-            {
-                using (StreamWriter writer = new StreamWriter(filePath2, true))
-                {
-                    writer.Write(string.Join("", log_trade));
-                }
-            }
-            catch (Exception ex)
-            {
-                // ERROR: CRITICAL STABILITY ISSUE. Using MessageBox.Show() will halt the application.
-                MessageBox.Show("파일 저장 중 오류 발생2: " + ex.Message);
-            }
+                Directory.CreateDirectory(logDir);
+                Directory.CreateDirectory(tradeLogDir);
+                Directory.CreateDirectory(settingDir);
 
-            // Save Telegram Message Last Number
-            try
-            {
-                if (!File.Exists(filePath3))
+                string formattedDate = DateTime.Now.ToString("yyyyMMdd");
+
+                string filePath = Path.Combine(logDir, $"{formattedDate}_full.txt");
+                string filePath2 = Path.Combine(tradeLogDir, $"{formattedDate}_trade.txt");
+                string filePath3 = Path.Combine(settingDir, "setting.txt");
+
+                // Save log files
+                try
                 {
-                    MessageBox.Show("세이브 파일이 존재하지 않습니다.");
-                    return;
+                    File.AppendAllText(filePath, string.Join("", log_full));
+                }
+                catch (Exception ex)
+                {
+                    WriteLog_System("Full log 파일 저장 중 오류 발생: " + ex.Message + "\n");
                 }
 
-                // 파일의 모든 줄을 동기적으로 읽어오기
-                List<string> linesList = new List<string>();
-                using (StreamReader reader = new StreamReader(filePath3))
+                try
                 {
-                    string line;
-                    while ((line = reader.ReadLine()) != null)
+                    File.AppendAllText(filePath2, string.Join("", log_trade));
+                }
+                catch (Exception ex)
+                {
+                    WriteLog_System("Trade log 파일 저장 중 오류 발생: " + ex.Message + "\n");
+                }
+
+                // Save Telegram Message Last Number
+                try
+                {
+                    if (!File.Exists(filePath3))
                     {
-                        linesList.Add(line);
+                        WriteLog_System("설정 파일이 존재하지 않아 새로 생성합니다.\n");
                     }
-                }
-                string[] lines = linesList.ToArray();
 
-                // Ensure the file has at least three lines to update
-                if (lines.Length >= 3)
-                {
-                    lines[lines.Length - 3] = "Telegram_Last_Chat_update_id/" + Convert.ToString(update_id);
-                    lines[lines.Length - 2] = "GridView1_Refresh_Time/" + Convert.ToString(UI_UPDATE.Text);
-                    lines[lines.Length - 1] = "Auth/" + Convert.ToString(Authentication);
-
-                    // 파일의 모든 줄을 동기적으로 쓰기
-                    using (StreamWriter writer = new StreamWriter(filePath3, false))
+                    // This logic is brittle. A better solution would be a proper settings class,
+                    // but for now, we'll make it safer than just overwriting lines by index.
+                    var settings = new Dictionary<string, string>();
+                    if (File.Exists(filePath3))
                     {
+                        var lines = File.ReadAllLines(filePath3);
                         foreach (var line in lines)
                         {
-                            writer.WriteLine(line);
+                            var parts = line.Split(new[] { '/' }, 2);
+                            if (parts.Length == 2 && !settings.ContainsKey(parts[0]))
+                            {
+                                settings.Add(parts[0], parts[1]);
+                            }
                         }
                     }
+
+                    settings["Telegram_Last_Chat_update_id"] = Convert.ToString(update_id);
+                    settings["GridView1_Refresh_Time"] = Convert.ToString(UI_UPDATE.Text);
+                    settings["Auth"] = Convert.ToString(Authentication_Check); // Use the correct variable
+
+                    var newLines = settings.Select(kvp => $"{kvp.Key}/{kvp.Value}");
+                    File.WriteAllLines(filePath3, newLines);
                 }
-                else
+                catch (Exception ex)
                 {
-                    MessageBox.Show("파일 형식 오류3 : 새로운 세이브 파일 다운로드 요망");
+                    WriteLog_System("설정 파일 저장 중 오류 발생: " + ex.Message + "\n");
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show("파일 저장 중 오류 발생3: " + ex.Message);
+                // Catch exceptions from directory creation etc.
+                WriteLog_System("Form_FormClosed에서 심각한 오류 발생: " + ex.Message + "\n");
             }
         }
 
@@ -3885,51 +3876,59 @@ namespace WindowsFormsApp1
         //실시간 시세(지속적 발생 / (현재가. 등락율, 거래량, 수익률)
         private async void onReceiveRealData(object sender, AxKHOpenAPILib._DKHOpenAPIEvents_OnReceiveRealDataEvent e)
         {
-            string price = Regex.Replace(axKHOpenAPI1.GetCommRealData(e.sRealKey, 10).Trim(), @"[\+\-]", "");
-            string amount = axKHOpenAPI1.GetCommRealData(e.sRealKey, 13).Trim();
-            string updown = axKHOpenAPI1.GetCommRealData(e.sRealKey, 12).Trim();
+            // '+' or '-' sign is not needed.
+            string priceStr = axKHOpenAPI1.GetCommRealData(e.sRealKey, 10).Trim().Replace("+", "").Replace("-", "");
+            string amountStr = axKHOpenAPI1.GetCommRealData(e.sRealKey, 13).Trim();
+            string updownStr = axKHOpenAPI1.GetCommRealData(e.sRealKey, 12).Trim();
 
-            if (string.IsNullOrEmpty(price) || string.IsNullOrEmpty(amount)) return;
+            if (string.IsNullOrEmpty(priceStr) || string.IsNullOrEmpty(amountStr)) return;
 
-            UpdateDataAndCheckForSell(e.sRealKey, price, amount, updown);
-            UpdateDataTableHold(e.sRealKey, price, amount);
+            // Run sequentially to avoid potential race conditions on DataTables,
+            // even though they are different tables. It's safer.
+            await UpdateDataAndCheckForSell(e.sRealKey, priceStr, amountStr, updownStr);
+            await UpdateDataTableHold(e.sRealKey, priceStr);
         }
 
-        private async void UpdateDataAndCheckForSell(string stockCode, string price, string amount, string updown)
+        private async Task UpdateDataAndCheckForSell(string stockCode, string priceStr, string amountStr, string updownStr)
         {
             try
             {
                 var findRows = dtCondStock.AsEnumerable().Where(r => r.Field<string>("종목코드") == stockCode).ToArray();
-                //항목 없으면 이탈
-                if (findRows.Length == 0) return;
+                if (!findRows.Any()) return;
 
                 var row = findRows.First();
 
-                string currentPrice = row["현재가"].ToString().Replace(",", "");
-                //현재가 동일하면 이탈
-                if (currentPrice.Equals(price)) return;
+                string currentPriceStr = row.Field<string>("현재가").Replace(",", "");
+                if (currentPriceStr == priceStr) return;
 
+                // Parse all needed values once to avoid repeated conversions.
+                if (!int.TryParse(priceStr, out int price)) return;
+                if (!int.TryParse(amountStr, out int amount)) return;
+                if (!decimal.TryParse(updownStr, out decimal updown)) return;
 
-                string buyPrice = row["편입가"].ToString().Replace(",", "");
-                string status = row["상태"].ToString();
-                string inHigh = row["편입최고"].ToString().Replace(",", "");
-                string orderNumber = row["주문번호"].ToString();
-                string hold = row["보유수량"].ToString().Split('/')[0];
+                string status = row.Field<string>("상태");
+                string buyPriceStr = row.Field<string>("편입가").Replace(",", "");
+                string inHighStr = row.Field<string>("편입최고").Replace(",", "");
+                string orderNumber = row.Field<string>("주문번호");
+                string holdStr = row.Field<string>("보유수량").Split('/')[0];
                 string code_name = row.Field<string>("종목명");
 
-                double nativePrice = Convert.ToDouble(price);
-                double nativePercent = (nativePrice - Convert.ToDouble(buyPrice)) / Convert.ToDouble(buyPrice) * 100;
-                string percent = string.Format("{0:#,##0.00}%", Convert.ToDecimal(nativePercent));
+                if (!double.TryParse(buyPriceStr, out double buyPrice)) return;
+                if (!double.TryParse(inHighStr, out double inHigh)) return;
+                if (!int.TryParse(holdStr, out int hold)) return;
 
-                row["현재가"] = string.Format("{0:#,##0}", Convert.ToInt32(price));
-                row["등락율"] = string.Format("{0:#,##0.00}%", Convert.ToDecimal(updown));
-                row["거래량"] = string.Format("{0:#,##0}", Convert.ToInt32(amount));
-                row["수익률"] = percent;
+                double nativePercent = (buyPrice == 0) ? 0 : (price - buyPrice) / buyPrice * 100;
 
-                if ((status == "매수완료" || status == "TS매수완료") && Convert.ToInt32(inHigh) < Convert.ToInt32(price))
+                // Update row values
+                row["현재가"] = string.Format("{0:#,##0}", price);
+                row["등락율"] = string.Format("{0:#,##0.00}%", updown);
+                row["거래량"] = string.Format("{0:#,##0}", amount);
+                row["수익률"] = string.Format("{0:#,##0.00}%", nativePercent);
+
+                if ((status == "매수완료" || status == "TS매수완료") && inHigh < price)
                 {
-                    row["편입최고"] = string.Format("{0:#,##0}", Convert.ToInt32(price));
-                    if (status == "TS매수완료" && nativePercent >= double.Parse(utility.profit_ts_text))
+                    row["편입최고"] = string.Format("{0:#,##0}", price);
+                    if (status == "TS매수완료" && utility.profit_ts && double.TryParse(utility.profit_ts_text, out double tsProfit) && nativePercent >= tsProfit)
                     {
                         row["상태"] = "매수완료";
                     }
@@ -3937,39 +3936,52 @@ namespace WindowsFormsApp1
 
                 if (status.Equals("매수완료"))
                 {
+                    bool shouldSell = false;
                     lock (sell_lock)
                     {
                         if (!sell_runningCodes.ContainsKey(orderNumber))
                         {
                             sell_runningCodes[orderNumber] = true;
+                            shouldSell = true;
+                        }
+                    }
+
+                    if (shouldSell)
+                    {
+                        try
+                        {
                             if (utility.profit_ts)
                             {
-                                if (Convert.ToInt32(inHigh) > Convert.ToInt32(price))
+                                if (inHigh > price)
                                 {
-                                    double downPercentReal = (Convert.ToDouble(price) - Convert.ToDouble(inHigh)) / Convert.ToDouble(inHigh) * 100;
-                                    sell_check_price(string.Format("{0:#,##0}", Convert.ToInt32(price)), percent, Convert.ToInt32(hold), Convert.ToInt32(buyPrice), orderNumber, downPercentReal, buyPrice, stockCode, code_name, hold);
+                                    double downPercentReal = (inHigh == 0) ? 0 : (price - inHigh) / inHigh * 100;
+                                    await sell_check_price(price.ToString(), string.Format("{0:F2}%", nativePercent), hold, (int)buyPrice, orderNumber, downPercentReal, buyPrice.ToString(), stockCode, code_name, hold.ToString());
                                 }
                             }
                             else
                             {
-                                sell_check_price(string.Format("{0:#,##0}", Convert.ToInt32(price)), percent, Convert.ToInt32(hold), Convert.ToInt32(buyPrice), orderNumber, 0, buyPrice, stockCode, code_name, hold);
+                                await sell_check_price(price.ToString(), string.Format("{0:F2}%", nativePercent), hold, (int)buyPrice, orderNumber, 0, buyPrice.ToString(), stockCode, code_name, hold.ToString());
                             }
-                            sell_runningCodes.Remove(orderNumber);
+                        }
+                        finally
+                        {
+                            lock (sell_lock)
+                            {
+                                sell_runningCodes.Remove(orderNumber);
+                            }
                         }
                     }
                 }
 
                 Invoke(new MethodInvoker(gridView1_refresh));
-
             }
             catch (Exception ex)
             {
-                // Log the exception for debugging purposes
                 WriteLog_System($"Error in UpdateDataAndCheckForSell: {ex.Message}\n");
             }
         }
 
-        private async void UpdateDataTableHold(string stockCode, string price, string amount)
+        private async Task UpdateDataTableHold(string stockCode, string priceStr)
         {
             try
             {
@@ -3977,23 +3989,25 @@ namespace WindowsFormsApp1
                 if (findRows2.Length == 0) return;
                 DataRow row = findRows2[0];
 
-                string currentPrice = row["현재가"].ToString().Replace(",", "");
-                //
-                if (currentPrice.Equals(price))
+                string currentPriceStr = row["현재가"].ToString().Replace(",", "");
+                if (currentPriceStr.Equals(priceStr))
                 {
                     return;
                 }
-                //
-                row["현재가"] = string.Format("{0:#,##0}", Convert.ToInt32(price));
-                row["평가금액"] = string.Format("{0:#,##0}", Convert.ToInt32(price) * Convert.ToInt32(row["보유수량"].ToString().Replace(",", "")));
 
-                double nativePrice = Convert.ToDouble(price);
-                double buyPrice = Convert.ToDouble(row["평균단가"].ToString().Replace(",", ""));
-                double nativePercent = (nativePrice - buyPrice) / buyPrice * 100;
-                string percent = string.Format("{0:#,##0.00}%", Convert.ToDecimal(nativePercent));
+                if (!int.TryParse(priceStr, out int price)) return;
+                if (!int.TryParse(row["보유수량"].ToString().Replace(",", ""), out int holdQuantity)) return;
+                if (!double.TryParse(row["평균단가"].ToString().Replace(",", ""), out double avgPrice)) return;
+
+                row["현재가"] = string.Format("{0:#,##0}", price);
+                double evalAmount = (double)price * holdQuantity;
+                row["평가금액"] = string.Format("{0:#,##0}", evalAmount);
+
+                double nativePercent = (avgPrice == 0) ? 0 : (price - avgPrice) / avgPrice * 100;
+                string percent = string.Format("{0:#,##0.00}%", nativePercent);
 
                 row["수익률"] = percent;
-                row["손익금액"] = string.Format("{0:#,##0}", Convert.ToInt32(Convert.ToInt32(row["평가금액"].ToString().Replace(",", "")) * Convert.ToDouble(percent.Replace("%", "")) / 100));
+                row["손익금액"] = string.Format("{0:#,##0}", evalAmount * (nativePercent / 100.0));
 
                 if (dataGridView2.InvokeRequired)
                 {
@@ -4009,7 +4023,6 @@ namespace WindowsFormsApp1
             }
             catch (Exception ex)
             {
-                // Log the exception for debugging purposes
                 WriteLog_System($"Error in UpdateDataTableHold: {ex.Message}\n");
             }
         }
