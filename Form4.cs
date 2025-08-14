@@ -23,9 +23,13 @@ namespace WindowsFormsApp1
         private void start()
         {
             // 파일이 있는 폴더 경로
-            // ERROR: CRITICAL PORTABILITY ISSUE. The path to the log directory is hardcoded.
-            // This will fail if the application is run on a machine without this exact directory.
             string folderPath = @"C:\Auto_Trade_Kiwoom\Log";
+
+            if (!Directory.Exists(folderPath))
+            {
+                richTextBox1.AppendText("로그 디렉토리가 존재하지 않습니다: " + folderPath);
+                return;
+            }
 
             // 해당 폴더의 모든 파일을 가져오기
             string[] files = Directory.GetFiles(folderPath).OrderByDescending(file => file).ToArray();
@@ -48,25 +52,26 @@ namespace WindowsFormsApp1
 
         private void read(object sender, EventArgs e)
         {
-            // 파일이 있는 폴더 경로
-            // ERROR: CRITICAL PORTABILITY ISSUE. The path to the log directory is hardcoded.
+            if (listBox1.SelectedItem == null) return;
+
             string folderPath = @"C:\Auto_Trade_Kiwoom\Log\";
+            string selectedFile = folderPath + listBox1.SelectedItem.ToString() + "_full.txt";
 
             try
             {
-                // 파일 열기
-                using (StreamReader reader = new StreamReader(folderPath + listBox1.SelectedItem.ToString() + "_full.txt"))
-                {
-                    // 파일 내용 읽기
-                    // ERROR: Inefficient file reading. `ReadToEnd()` loads the entire file into
-                    // memory at once. This can cause performance issues or an OutOfMemoryException
-                    // if the log files are very large. It would be better to read the file
-                    // line by line or in chunks.
-                    string content = reader.ReadToEnd();
+                richTextBox1.Clear();
 
-                    // 파일 내용 출력
-                    richTextBox1.Clear();
-                    richTextBox1.AppendText(content);
+                // Use a buffer to make reading more efficient
+                const int bufferSize = 4096;
+                var buffer = new char[bufferSize];
+
+                using (var reader = new StreamReader(selectedFile, Encoding.UTF8, true, bufferSize))
+                {
+                    int charsRead;
+                    while ((charsRead = reader.ReadBlock(buffer, 0, buffer.Length)) > 0)
+                    {
+                        richTextBox1.AppendText(new string(buffer, 0, charsRead));
+                    }
                 }
             }
             catch (Exception ex)

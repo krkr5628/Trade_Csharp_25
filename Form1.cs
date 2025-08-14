@@ -660,40 +660,37 @@ namespace WindowsFormsApp1
         //telegram_send(초당 1개씩 전송)
         private async void telegram_send(string message)
         {
-            string urlString = $"https://api.telegram.org/bot{utility.telegram_token}/sendMessage?chat_id={utility.telegram_user_id}&text={message}";
+            string urlString = $"https://api.telegram.org/bot{utility.telegram_token}/sendMessage?chat_id={utility.telegram_user_id}&text={Uri.EscapeDataString(message)}";
 
             bool success = false;
-
             while (!success)
             {
                 try
                 {
-                    WebRequest request = WebRequest.Create(urlString);
-                    request.Timeout = 60000; // 60초로 Timeout 설정
+                    var client = HttpManager.Client;
+                    HttpResponseMessage response = await client.GetAsync(urlString);
 
-                    //await은 비동기 작업이 완료될떄까지 기다린다.
-                    //using 문은 IDisposable 인터페이스를 구현한 객체의 리소스를 안전하게 해제하는 데 사용
-                    using (WebResponse response = await request.GetResponseAsync())
-                    using (Stream stream = response.GetResponseStream())
-                    using (StreamReader reader = new StreamReader(stream))
+                    if (response.IsSuccessStatusCode)
                     {
-                        string responseString = await reader.ReadToEndAsync();
                         success = true;
                     }
-                }
-                catch (WebException ex)
-                {
-                    if (ex.Response is HttpWebResponse response && response.StatusCode == (HttpStatusCode)429)
+                    else if (response.StatusCode == (HttpStatusCode)429) // Too Many Requests
                     {
-                        WriteLog_System($"FLOOD_WAIT: Waiting for 30s...");
-                        await Task.Delay(30000);
+                        var retryAfter = response.Headers.RetryAfter;
+                        int delaySeconds = retryAfter?.Delta?.Seconds ?? 30;
+                        WriteLog_System($"FLOOD_WAIT: Waiting for {delaySeconds}s...");
+                        await Task.Delay(delaySeconds * 1000);
                     }
                     else
                     {
-                        WriteLog_System("Telegram 전송 오류 발생 : " + ex.Message);
-                        success = true;
-                        WriteLog_System("Telegram 전송 중단\n");
+                        WriteLog_System($"Telegram 전송 오류 발생 : {response.StatusCode}");
+                        success = true; // Stop trying on other errors
                     }
+                }
+                catch (Exception ex)
+                {
+                    WriteLog_System("Telegram 전송 오류 발생 : " + ex.Message);
+                    success = true; // Stop trying on exception
                 }
             }
         }
@@ -711,15 +708,15 @@ namespace WindowsFormsApp1
                 try
                 {
                     string requestUrl = $"https://api.telegram.org/bot{utility.telegram_token}/getUpdates" + (update_id == 0 ? "" : $"?offset={update_id + 1}");
-                    WebRequest request = WebRequest.Create(requestUrl);
-                    using (WebResponse response = await request.GetResponseAsync())
-                    using (Stream stream = response.GetResponseStream())
-                    using (StreamReader reader = new StreamReader(stream))
+                    var client = HttpManager.Client;
+                    HttpResponseMessage response = await client.GetAsync(requestUrl);
+
+                    if (response.IsSuccessStatusCode)
                     {
-                        string response_message = await reader.ReadToEndAsync();
+                        string response_message = await response.Content.ReadAsStringAsync();
                         JObject jsonData = JObject.Parse(response_message);
                         JArray resultArray = (JArray)jsonData["result"];
-                        //
+
                         if (resultArray.Count > 0)
                         {
                             foreach (var result in resultArray)
@@ -732,13 +729,11 @@ namespace WindowsFormsApp1
                                 }
 
                                 string message = Convert.ToString(result["message"]["text"]);
-                                //
                                 int current_message_number = Convert.ToInt32(result["update_id"]);
-                                //
                                 long unixTimestamp = Convert.ToInt64(result["message"]["date"]);
                                 DateTime dateTime = DateTimeOffset.FromUnixTimeSeconds(unixTimestamp).DateTime;
                                 DateTime localDateTime = dateTime.ToLocalTime();
-                                //
+
                                 if (current_message_number > update_id && localDateTime >= time_start)
                                 {
                                     if (!utility.load_check)
@@ -756,13 +751,21 @@ namespace WindowsFormsApp1
                                         telegram_message($"[TELEGRAM] : 조건식 로딩중\n");
                                         continue;
                                     }
-                                    //
+
                                     WriteLog_System($"[TELEGRAM] : {message} / {current_message_number}\n"); // 수신된 메시지 확인
                                     telegram_function(message);
                                     update_id = current_message_number;
                                 }
                             }
                         }
+                    }
+                    else if (response.StatusCode == HttpStatusCode.Conflict)
+                    {
+                        WriteLog_Order($"[TELEGRAM/ERROR] 409 Conflict occurred.");
+                    }
+                    else
+                    {
+                        WriteLog_Order($"[TELEGRAM/ERROR] : {response.StatusCode}");
                     }
                 }
                 catch (WebException ex)
@@ -798,93 +801,74 @@ namespace WindowsFormsApp1
 
         //FORM CLOSED 후 LOG 저장
         //Process.Kill()에서 비정상 작동할 가능성 높음
-        private void Form_FormClosed(object sender, FormClosedEventArgs e)
+        private async void Form_FormClosed(object sender, FormClosedEventArgs e)
         {
             string formattedDate = DateTime.Now.ToString("yyyyMMdd");
 
-            // Paths to save the files
-            // ERROR: CRITICAL PORTABILITY ISSUE. These file paths are hardcoded to an absolute
-            // directory on the C: drive. This application will crash if this exact folder
-            // structure does not exist. Paths should be relative or configurable.
-            string filePath = $@"C:\Auto_Trade_Kiwoom\Log\{formattedDate}_full.txt";
-            string filePath2 = $@"C:\Auto_Trade_Kiwoom\Log_Trade\{formattedDate}_trade.txt";
-            string filePath3 = @"C:\Auto_Trade_Kiwoom\Setting\setting.txt";
+            string logDir = @"C:\Auto_Trade_Kiwoom\Log";
+            string logTradeDir = @"C:\Auto_Trade_Kiwoom\Log_Trade";
+            string settingDir = @"C:\Auto_Trade_Kiwoom\Setting";
 
-            // Save log files
+            Directory.CreateDirectory(logDir);
+            Directory.CreateDirectory(logTradeDir);
+            Directory.CreateDirectory(settingDir);
+
+            string filePath = Path.Combine(logDir, $"{formattedDate}_full.txt");
+            string filePath2 = Path.Combine(logTradeDir, $"{formattedDate}_trade.txt");
+            string filePath3 = Path.Combine(settingDir, "setting.txt");
+
+            // Save log files asynchronously
             try
             {
                 using (StreamWriter writer = new StreamWriter(filePath, true))
                 {
-                    writer.Write(string.Join("", log_full));
+                    await writer.WriteAsync(string.Join("", log_full));
                 }
             }
             catch (Exception ex)
             {
-                // ERROR: CRITICAL STABILITY ISSUE. Using MessageBox.Show() in an automated
-                // application for error handling is a major flaw. It will halt all execution
-                // of the program, including any background trading logic, until a user
-                // manually clicks "OK". Errors should be logged to a file or handled gracefully.
-                MessageBox.Show("파일 저장 중 오류 발생1: " + ex.Message);
+                Debug.WriteLine("파일 저장 중 오류 발생1: " + ex.Message);
             }
 
             try
             {
                 using (StreamWriter writer = new StreamWriter(filePath2, true))
                 {
-                    writer.Write(string.Join("", log_trade));
+                    await writer.WriteAsync(string.Join("", log_trade));
                 }
             }
             catch (Exception ex)
             {
-                // ERROR: CRITICAL STABILITY ISSUE. Using MessageBox.Show() will halt the application.
-                MessageBox.Show("파일 저장 중 오류 발생2: " + ex.Message);
+                Debug.WriteLine("파일 저장 중 오류 발생2: " + ex.Message);
             }
 
-            // Save Telegram Message Last Number
+            // Save settings asynchronously
             try
             {
                 if (!File.Exists(filePath3))
                 {
-                    MessageBox.Show("세이브 파일이 존재하지 않습니다.");
+                    Debug.WriteLine("세이브 파일이 존재하지 않습니다.");
                     return;
                 }
 
-                // 파일의 모든 줄을 동기적으로 읽어오기
-                List<string> linesList = new List<string>();
-                using (StreamReader reader = new StreamReader(filePath3))
-                {
-                    string line;
-                    while ((line = reader.ReadLine()) != null)
-                    {
-                        linesList.Add(line);
-                    }
-                }
-                string[] lines = linesList.ToArray();
+                string[] lines = await Task.Run(() => File.ReadAllLines(filePath3));
 
-                // Ensure the file has at least three lines to update
                 if (lines.Length >= 3)
                 {
                     lines[lines.Length - 3] = "Telegram_Last_Chat_update_id/" + Convert.ToString(update_id);
                     lines[lines.Length - 2] = "GridView1_Refresh_Time/" + Convert.ToString(UI_UPDATE.Text);
                     lines[lines.Length - 1] = "Auth/" + Convert.ToString(Authentication);
 
-                    // 파일의 모든 줄을 동기적으로 쓰기
-                    using (StreamWriter writer = new StreamWriter(filePath3, false))
-                    {
-                        foreach (var line in lines)
-                        {
-                            writer.WriteLine(line);
-                        }
-                    }
+                    await Task.Run(() => File.WriteAllLines(filePath3, lines));
                 }
                 else
                 {
-                    MessageBox.Show("파일 형식 오류3 : 새로운 세이브 파일 다운로드 요망");
+                    Debug.WriteLine("파일 형식 오류3 : 새로운 세이브 파일 다운로드 요망");
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show("파일 저장 중 오류 발생3: " + ex.Message);
+                Debug.WriteLine("파일 저장 중 오류 발생3: " + ex.Message);
             }
         }
 
@@ -893,6 +877,7 @@ namespace WindowsFormsApp1
         private void UI_UPDATE_TextChanged(object sender, EventArgs e)
         {
             UI_Refresh_interval = UI_UPDATE.Text;
+            SetupUiTimer();
         }
 
         //------------------------------------------공용기능-------------------------------------------
@@ -1327,134 +1312,80 @@ namespace WindowsFormsApp1
             }
         }
 
-        private bool ui_timer = false;
+        private bool ui_timer_running = false;
 
         private void gridView1_refresh()
         {
-
             try
             {
+                if (ui_timer_running) return; // If the timer is running, let it handle the refresh.
+
                 if (dataGridView1.InvokeRequired)
                 {
                     dataGridView1.Invoke((MethodInvoker)delegate
                     {
-                        bindingSource.ResetBindings(false);
+                        if (bindingSource.DataSource != null)
+                        {
+                           bindingSource.ResetBindings(false);
+                        }
                     });
                 }
                 else
                 {
-                    bindingSource.ResetBindings(false);
+                    if (bindingSource.DataSource != null)
+                    {
+                        bindingSource.ResetBindings(false);
+                    }
                 }
             }
             catch (Exception ex)
             {
                 WriteLog_System($"Error in gridView1_refresh: {ex.Message}\n");
             }
-
-            /*
-            if (dataGridView1.InvokeRequired)
-            {
-                dataGridView1.Invoke(new Action(gridView1_refresh));
-                return;
-            }
-
-            if (UI_UPDATE.Text.Trim().Equals("실시간"))
-            {
-                // 현재 스크롤 위치 저장
-                int firstDisplayedRowIndex = -1;
-                if (dataGridView1.Rows.Count > 0)
-                {
-                    try
-                    {
-                        firstDisplayedRowIndex = dataGridView1.FirstDisplayedScrollingRowIndex;
-                    }
-                    catch (Exception ex)
-                    {
-                        MessageBox.Show($"Error retrieving FirstDisplayedScrollingRowIndex: {ex.Message}\n");
-                    }
-                }
-
-                try
-                {
-
-                    // DataGridView1 업데이트
-                    if (bindingSource.DataSource != null)
-                    {
-                        bindingSource.ResetBindings(false);
-                    }
-                    else
-                    {
-                        MessageBox.Show($"Error in gridView1_refresh: BindingSource 재할당\n");
-                    }
-
-
-                    // 스크롤 위치 복원
-                    if (firstDisplayedRowIndex >= 0 && firstDisplayedRowIndex < dataGridView1.Rows.Count)
-                    {
-                        try
-                        {
-                            dataGridView1.FirstDisplayedScrollingRowIndex = firstDisplayedRowIndex;
-                        }
-                        catch (Exception ex)
-                        {
-                            WriteLog_System($"Error restoring FirstDisplayedScrollingRowIndex: {ex.Message}\n");
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    WriteLog_System($"Error in gridView1_refresh: {ex.Message}\n");
-                }
-
-                if (Ui_timer != null)
-                {
-                    Ui_timer.Stop();
-                    Ui_timer.Dispose();
-                    Ui_timer = null;
-                }
-            }
-            else if (!UI_UPDATE.Text.Trim().Equals("실시간") && !ui_timer)
-            {
-                ui_timer = true;
-                UI_timer();
-            }
-            */
         }
 
         private System.Timers.Timer Ui_timer;
 
-        private void UI_timer()
+        private void SetupUiTimer()
         {
-            Ui_timer = new System.Timers.Timer(Convert.ToInt32(UI_UPDATE.Text.Replace("ms", "")));
-            Ui_timer.Elapsed += (sender, e) =>
+            if (Ui_timer != null)
             {
-                // 현재 스크롤 위치 저장
-                int firstDisplayedRowIndex = dataGridView1.FirstDisplayedScrollingRowIndex;
+                Ui_timer.Stop();
+                Ui_timer.Dispose();
+            }
 
-                lock (table1)
+            if (UI_UPDATE.Text.Trim().Equals("실시간"))
+            {
+                ui_timer_running = false;
+                gridView1_refresh(); // Refresh once when switching to real-time
+                return;
+            }
+
+            int interval;
+            if (int.TryParse(UI_UPDATE.Text.Replace("ms", ""), out interval) && interval > 0)
+            {
+                ui_timer_running = true;
+                Ui_timer = new System.Timers.Timer(interval);
+                Ui_timer.Elapsed += (s, e) =>
                 {
-                    //
-                    if (dataGridView1.InvokeRequired)
+                    if (dataGridView1.IsHandleCreated)
                     {
                         dataGridView1.Invoke((MethodInvoker)delegate
                         {
-                            bindingSource.ResetBindings(false);
+                           if (bindingSource.DataSource != null)
+                           {
+                               bindingSource.ResetBindings(false);
+                           }
                         });
                     }
-                    else
-                    {
-                        bindingSource.ResetBindings(false);
-                    }
-
-                    // 스크롤 위치 복원
-                    if (firstDisplayedRowIndex >= 0 && firstDisplayedRowIndex < dataGridView1.Rows.Count && firstDisplayedRowIndex != dataGridView1.FirstDisplayedScrollingRowIndex)
-                    {
-                        dataGridView1.FirstDisplayedScrollingRowIndex = firstDisplayedRowIndex;
-                    }
-                }
-            };
-            Ui_timer.AutoReset = false;
-            Ui_timer.Start();
+                };
+                Ui_timer.AutoReset = true;
+                Ui_timer.Start();
+            }
+            else
+            {
+                ui_timer_running = false;
+            }
         }
 
         //초기 설정 변수
@@ -2058,7 +1989,7 @@ namespace WindowsFormsApp1
 
         private int delayMilliseconds = 60102; //1분
         private int Max_Retry = 4;
-        private string[] userAgents = new string[]
+        private static readonly string[] userAgents = new string[]
         {
          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3",
          "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:76.0) Gecko/20100101 Firefox/76.0",
@@ -2069,70 +2000,68 @@ namespace WindowsFormsApp1
         //HTTPS PARSING
         private async Task<double> GetStockIndex(string url, string symbol)
         {
-            using (HttpClient client = new HttpClient())
+            var client = HttpManager.Client;
+            for (int i = 0; i < Max_Retry; i++)
             {
-                for (int i = 0; i < Max_Retry; i++)
+                try
                 {
-                    try
+                    client.DefaultRequestHeaders.Clear(); // 이전 헤더를 제거
+                    client.DefaultRequestHeaders.Add("User-Agent", userAgents[i]);
+
+                    HttpResponseMessage response = await client.GetAsync(url);
+
+                    if (response.IsSuccessStatusCode)
                     {
-                        client.DefaultRequestHeaders.Clear(); // 이전 헤더를 제거
-                        client.DefaultRequestHeaders.Add("User-Agent", userAgents[i]);
+                        string responseData = await response.Content.ReadAsStringAsync();
+                        JObject jsonData = JObject.Parse(responseData);
 
-                        HttpResponseMessage response = await client.GetAsync(url);
+                        // Navigate the JSON structure to get the closing price
+                        double closePrice = Convert.ToDouble(jsonData["chart"]["result"][0]["meta"]["regularMarketPrice"]);
+                        double chartPreviousClose = Convert.ToDouble(jsonData["chart"]["result"][0]["meta"]["chartPreviousClose"]);
+                        long utc_time = Convert.ToInt64(jsonData["chart"]["result"][0]["meta"]["regularMarketTime"]);
+                        int offset = Convert.ToInt32(jsonData["chart"]["result"][0]["meta"]["gmtoffset"]);
 
-                        if (response.IsSuccessStatusCode)
+                        if (!index_run) index_stop_skip(utc_time, offset);
+
+                        return Math.Round((closePrice - chartPreviousClose) / chartPreviousClose * 100, 2);
+                    }
+                    else if ((int)response.StatusCode == 429)
+                    {
+                        if (response.Headers.Contains("Retry-After"))
                         {
-                            string responseData = await response.Content.ReadAsStringAsync();
-                            JObject jsonData = JObject.Parse(responseData);
-
-                            // Navigate the JSON structure to get the closing price
-                            double closePrice = Convert.ToDouble(jsonData["chart"]["result"][0]["meta"]["regularMarketPrice"]);
-                            double chartPreviousClose = Convert.ToDouble(jsonData["chart"]["result"][0]["meta"]["chartPreviousClose"]);
-                            long utc_time = Convert.ToInt64(jsonData["chart"]["result"][0]["meta"]["regularMarketTime"]);
-                            int offset = Convert.ToInt32(jsonData["chart"]["result"][0]["meta"]["gmtoffset"]);
-
-                            if (!index_run) index_stop_skip(utc_time, offset);
-
-                            return Math.Round((closePrice - chartPreviousClose) / chartPreviousClose * 100, 2);
-                        }
-                        else if ((int)response.StatusCode == 429)
-                        {
-                            if (response.Headers.Contains("Retry-After"))
+                            string retryAfter = response.Headers.GetValues("Retry-After").FirstOrDefault();
+                            if (int.TryParse(retryAfter, out int retryAfterSeconds))
                             {
-                                string retryAfter = response.Headers.GetValues("Retry-After").FirstOrDefault();
-                                if (int.TryParse(retryAfter, out int retryAfterSeconds))
-                                {
-                                    delayMilliseconds = retryAfterSeconds * 1000;
-                                    WriteLog_System($"과다요청(retry) : {delayMilliseconds / 1000}초 지연\n");
-                                }
-                                else
-                                {
-                                    delayMilliseconds += 30000;
-                                    WriteLog_System($"과다요청 : {delayMilliseconds / 1000}초 지연\n");
-                                }
+                                delayMilliseconds = retryAfterSeconds * 1000;
+                                WriteLog_System($"과다요청(retry) : {delayMilliseconds / 1000}초 지연\n");
                             }
                             else
                             {
                                 delayMilliseconds += 30000;
                                 WriteLog_System($"과다요청 : {delayMilliseconds / 1000}초 지연\n");
                             }
-
-                            await Task.Delay(delayMilliseconds); // 지연 후 재시도
                         }
                         else
                         {
-                            WriteLog_System($"[Error fetching data for {symbol}]: {response.StatusCode}\n");
-                            break;
+                            delayMilliseconds += 30000;
+                            WriteLog_System($"과다요청 : {delayMilliseconds / 1000}초 지연\n");
                         }
+
+                        await Task.Delay(delayMilliseconds); // 지연 후 재시도
                     }
-                    catch (Exception ex)
+                    else
                     {
-                        WriteLog_System($"[Error fetching data for {symbol}]: {ex.Message}\n");
+                        WriteLog_System($"[Error fetching data for {symbol}]: {response.StatusCode}\n");
                         break;
                     }
                 }
-                return -999;
+                catch (Exception ex)
+                {
+                    WriteLog_System($"[Error fetching data for {symbol}]: {ex.Message}\n");
+                    break;
+                }
             }
+            return -999;
         }
 
         //전일 휴무 확인(UTC)

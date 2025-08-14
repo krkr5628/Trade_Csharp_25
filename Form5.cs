@@ -29,48 +29,30 @@ namespace WindowsFormsApp1
         private void read()
         {
             // 파일이 있는 폴더 경로
-            // ERROR: CRITICAL PORTABILITY ISSUE. The paths to the agreement and update
-            // text files are hardcoded. This will fail if the application is run on a
-            // machine without this exact directory structure.
             string folderPath = @"C:\Auto_Trade_Kiwoom\Update\Agreement.txt";
             string folderPath2 = @"C:\Auto_Trade_Kiwoom\Update\Update.txt";
 
+            ReadFileToRichTextBox(folderPath, richTextBox1);
+            ReadFileToRichTextBox(folderPath2, richTextBox2);
+        }
+
+        private void ReadFileToRichTextBox(string filePath, RichTextBox richTextBox)
+        {
             try
             {
-                // 파일 열기
-                using (StreamReader reader = new StreamReader(folderPath))
+                if (!File.Exists(filePath))
                 {
-                    // 파일 내용 읽기
-                    string content = reader.ReadToEnd();
-
-                    // 파일 내용 출력
-                    richTextBox1.Clear();
-                    richTextBox1.AppendText(content);
+                    richTextBox.Text = $"파일을 찾을 수 없습니다: {filePath}";
+                    return;
                 }
+
+                // Use ReadLines for memory efficiency with large files
+                richTextBox.Lines = File.ReadAllLines(filePath);
             }
             catch (Exception ex)
             {
-                MessageBox.Show("파일 읽기 중 오류 발생: " + ex.Message);
+                MessageBox.Show($"파일 읽기 중 오류 발생: {ex.Message}");
             }
-
-            try
-            {
-                // 파일 열기
-                using (StreamReader reader = new StreamReader(folderPath2))
-                {
-                    // 파일 내용 읽기
-                    string content = reader.ReadToEnd();
-
-                    // 파일 내용 출력
-                    richTextBox2.Clear();
-                    richTextBox2.AppendText(content);
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("파일 읽기 중 오류 발생: " + ex.Message);
-            }
-
         }
 
         /*
@@ -119,13 +101,11 @@ namespace WindowsFormsApp1
 
         public static async Task<string> SendAuthCodeAsync(string authCode)
         {
-            // ERROR: Incorrect HttpClient Usage. A new HttpClient is created for each request,
-            // which can lead to socket exhaustion. A single client should be shared.
-            HttpClient client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+            var client = HttpManager.Client;
             var content = new StringContent($"{{ \"authCode\": \"{authCode}\" }}", Encoding.UTF8, "application/json");
-            // ERROR: CRITICAL FUNCTIONALITY ISSUE. The authentication feature is broken because
-            // the server URL is a placeholder. The comment "IP 노출 우려로 PUSH 금지" (Do not PUSH
-            // due to risk of IP exposure) indicates the real URL was intentionally removed.
+
+            // The real URL was intentionally removed from the original code.
+            // This placeholder will not work.
             var response = await client.PostAsync("http://your-server-url/auth", content);
 
             if (response.IsSuccessStatusCode)

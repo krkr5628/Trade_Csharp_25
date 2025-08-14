@@ -168,6 +168,7 @@ namespace WindowsFormsApp1
         public static string TradingView_Webhook_Start;
         public static string TradingView_Webhook_Stop;
         //
+        public static bool IsProduction = false; // `false` for paper trading (모의투자), `true` for real trading (실전투자)
         public static int Telegram_last_chat_update_id;
         //
         public static string GridView1_Refresh_Time;

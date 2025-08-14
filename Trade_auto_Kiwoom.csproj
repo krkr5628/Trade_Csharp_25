@@ -79,6 +79,7 @@
       <DependentUpon>Form5.cs</DependentUpon>
       <Optimize>false</Optimize>
     </Compile>
+    <Compile Include="HttpManager.cs" />
     <Compile Include="utility_KIS.cs" />
     <Compile Include="utility.cs" />
     <Compile Include="Form1.cs">
