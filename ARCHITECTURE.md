@@ -2,7 +2,7 @@
 
 ## 1. System Overview
 
-This project is an automated stock trading application built with C# and Windows Forms. It is designed to execute trades based on user-defined strategies and conditions, primarily using the Kiwoom Open API. The application features a graphical user interface (GUI) for monitoring, configuration, and viewing logs. It also includes integration with Telegram for notifications and remote control, with planned support for the Korea Investment & Securities (KIS) API.
+This project is an automated stock trading application built with C# and Windows Forms. It is designed to execute trades based on user-defined strategies and conditions, using multiple brokerage APIs. It primarily supports the Kiwoom Open API and now includes full support for the Korea Investment & Securities (KIS) API. The application features a graphical user interface (GUI) for monitoring, configuration, and viewing logs. It also includes integration with Telegram for notifications and remote control, and can receive trade signals via TradingView Webhooks.
 
 ## 2. System Architecture
 
@@ -18,8 +18,9 @@ A high-level view of the component interaction is as follows:
 -   **`Form1` (`Trade_Auto`)**: The central component.
     -   It initializes and manages other forms (`Form2` through `Form5`).
     -   It uses `utility.cs` to access global settings.
-    -   It uses `utility_KIS.cs` for KIS API calls (in development).
+    -   It uses `utility_KIS.cs` for KIS API calls.
     -   It handles all events from the Kiwoom API.
+    -   It includes a listener for TradingView webhooks to trigger trades.
 -   **`Form2` (`Setting`)**: Reads from and writes to `utility.cs` to manage settings. It is opened by `Form1`.
 -   **Other Forms (`Form3`, `Form4`, `Form5`)**: Display data (logs, transactions) read from files or passed from `Form1`.
 -   **`utility.cs`**: A global, static state store for all settings, read from `setting.txt`.
@@ -98,13 +99,13 @@ A high-level view of the component interaction is as follows:
 
 ### 3.8. `utility_KIS.cs`
 
--   **Purpose**: Encapsulates the logic for interacting with the Korea Investment & Securities (KIS) Open API. This feature is in development.
+-   **Purpose**: Encapsulates the logic for interacting with the Korea Investment & Securities (KIS) Open API.
 -   **Key Functionality**:
     -   **API Wrappers**: Contains methods for key KIS API endpoints:
         -   `KIS_WebSocket()`: Gets a WebSocket approval key.
         -   `KIS_Access()`: Gets an access token.
         -   `KIS_Order()`: Places buy/sell orders.
-        -   `KIS_Depositt()`: Checks account balance (marked as not supported in the mock environment).
+        -   `KIS_Depositt()`: Checks account balance.
     -   **Hardcoded Endpoints**: The URLs for the KIS API (both mock and production) are hardcoded, requiring manual code changes to switch environments.
 
 ## 4. Data Management
@@ -116,7 +117,8 @@ A high-level view of the component interaction is as follows:
 ## 5. External Dependencies
 
 -   **Kiwoom Open API**: The primary API used for all trading, market data, and account information.
--   **Korea Investment & Securities (KIS) Open API**: A secondary API for trading, currently in development.
+-   **Korea Investment & Securities (KIS) Open API**: A secondary API used for trading.
+-   **TradingView Webhooks**: Used to receive trade signals from TradingView alerts.
 -   **Telegram API**: Used for sending notifications and receiving commands via HTTP requests.
 -   **Yahoo Finance**: Used via unofficial HTTP requests to fetch US market index data.
 -   **Newtonsoft.Json**: Used for serializing and deserializing JSON data for API communication.
