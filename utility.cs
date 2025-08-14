@@ -13,10 +13,8 @@ namespace WindowsFormsApp1
     // difficult to test and maintain. A proper settings class or a safer singleton implementation should be used.
     class utility
     {
-        // ERROR: This hardcoded absolute file path makes the application non-portable.
-        // It will crash if this exact directory does not exist on the C: drive.
-        // This path should be made relative or configurable.
-        public static string system_route = "C:\\Auto_Trade_Kiwoom\\Setting\\setting.txt";
+        // Use a relative path for the settings file to improve portability.
+        public static string system_route = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Setting", "setting.txt");
         public static bool load_check = false;
 
         //global 변수ㅊㄴ
