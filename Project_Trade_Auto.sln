@@ -5,17 +5,23 @@ VisualStudioVersion = 16.0.33529.622
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Trade_auto_Kiwoom", "Trade_auto_Kiwoom.csproj", "{F5DA41D4-8894-4B36-A5C6-A769421051EE}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Trade_Csharp_25.Tests", "Tests\\Trade_Csharp_25.Tests.csproj", "{1E8C1C70-4F1D-4FB2-A8F2-6C3A27CE3C03}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
-	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{F5DA41D4-8894-4B36-A5C6-A769421051EE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{F5DA41D4-8894-4B36-A5C6-A769421051EE}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{F5DA41D4-8894-4B36-A5C6-A769421051EE}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{F5DA41D4-8894-4B36-A5C6-A769421051EE}.Release|Any CPU.Build.0 = Release|Any CPU
-	EndGlobalSection
+        GlobalSection(ProjectConfigurationPlatforms) = postSolution
+                {F5DA41D4-8894-4B36-A5C6-A769421051EE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+                {F5DA41D4-8894-4B36-A5C6-A769421051EE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+                {F5DA41D4-8894-4B36-A5C6-A769421051EE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+                {F5DA41D4-8894-4B36-A5C6-A769421051EE}.Release|Any CPU.Build.0 = Release|Any CPU
+                {1E8C1C70-4F1D-4FB2-A8F2-6C3A27CE3C03}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+                {1E8C1C70-4F1D-4FB2-A8F2-6C3A27CE3C03}.Debug|Any CPU.Build.0 = Debug|Any CPU
+                {1E8C1C70-4F1D-4FB2-A8F2-6C3A27CE3C03}.Release|Any CPU.ActiveCfg = Release|Any CPU
+                {1E8C1C70-4F1D-4FB2-A8F2-6C3A27CE3C03}.Release|Any CPU.Build.0 = Release|Any CPU
+        EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
