@@ -16,7 +16,7 @@ namespace WindowsFormsApp1
         // ERROR: This hardcoded absolute file path makes the application non-portable.
         // It will crash if this exact directory does not exist on the C: drive.
         // This path should be made relative or configurable.
-        public static string system_route = "C:\\Auto_Trade_Kiwoom\\Setting\\setting.txt";
+        public static string system_route = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Setting", "setting.txt");
         public static bool load_check = false;
 
         //global 변수ㅊㄴ
@@ -193,8 +193,14 @@ namespace WindowsFormsApp1
         //    before `reader.Close()`, the file handle will not be released, causing a resource leak.
         public static void auto_load(string filepath)
         {
-            StreamReader reader = new StreamReader(filepath);
+            if (!File.Exists(filepath))
+            {
+                MessageBox.Show($"Settings file not found: {filepath}");
+                return;
+            }
 
+            using (StreamReader reader = new StreamReader(filepath))
+            {
             //자동실행
             String[] auto_trade_allow_tmp = reader.ReadLine().Split('/');
             auto_trade_allow = Convert.ToBoolean(auto_trade_allow_tmp[1]);
@@ -563,8 +569,7 @@ namespace WindowsFormsApp1
             //Auth
             String[] Auth_tmp = reader.ReadLine().Split('/');
             Auth = Convert.ToString(Auth_tmp[1]);
-
-            reader.Close();
+            }
         }
     }
 }
